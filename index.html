@@ -1165,6 +1165,8 @@
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                 <button class="btn" onclick="exportData()">📄 تصدير PDF</button>
                 <button class="btn" onclick="exportExcel()">📊 تصدير Excel</button>
+                <button class="btn btn-success" onclick="exportToJSON()">💾 تصدير JSON</button>
+                <button class="btn btn-success" onclick="importFromJSON()">📥 استيراد JSON</button>
                 <button class="btn btn-danger" onclick="clearAllData()">🗑️ مسح كل البيانات</button>
                 <button class="btn btn-warning" onclick="refreshData()">🔄 تحديث البيانات</button>
             </div>
@@ -1407,33 +1409,64 @@
     };
 
     // ============================================
-    // تحميل البيانات
+    // تحميل البيانات من ملف JSON خارجي
     // ============================================
-    function loadData() {
-        let data = localStorage.getItem(STORAGE_KEY);
+    async function loadData() {
+        console.log('📊 Loading data from students_data.json...');
         
-        console.log('📊 Loading data from storage...');
-        
-        if (!data || JSON.parse(data).length === 0) {
-            console.log('⚠️ No data found, loading default data');
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
-            data = JSON.stringify(defaultData);
-            showNotification('تم تحميل البيانات الافتراضية من ملف PDF');
+        try {
+            // محاولة جلب البيانات من ملف JSON خارجي
+            const response = await fetch('students_data.json');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const jsonData = await response.json();
+            const parsedData = jsonData.students || [];
+            
+            // حفظ البيانات في localStorage كنسخة احتياطية
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+            
+            console.log('✅ Data loaded from file:', parsedData.length, 'students');
+            
+            populateFilterDropdowns(parsedData);
+            applyFilters(parsedData);
+            updateStats(parsedData);
+            
+            document.getElementById('debug-storage-info').innerHTML = `
+                <strong>Storage Info:</strong><br>
+                Students: ${parsedData.length} records<br>
+                Source: students_data.json<br>
+                Last Update: ${new Date().toLocaleString('ar-EG')}
+            `;
+        } catch (error) {
+            console.warn('⚠️ Could not load from students_data.json, trying localStorage...', error);
+            
+            // في حالة الفشل، محاولة تحميل من localStorage
+            let data = localStorage.getItem(STORAGE_KEY);
+            
+            if (!data || JSON.parse(data).length === 0) {
+                console.log('⚠️ No data found, loading default data');
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
+                data = JSON.stringify(defaultData);
+                showNotification('تم تحميل البيانات الافتراضية');
+            }
+            
+            const parsedData = JSON.parse(data);
+            console.log('✅ Data loaded from localStorage:', parsedData.length, 'students');
+            
+            populateFilterDropdowns(parsedData);
+            applyFilters(parsedData);
+            updateStats(parsedData);
+            
+            document.getElementById('debug-storage-info').innerHTML = `
+                <strong>Storage Info:</strong><br>
+                Students: ${parsedData.length} records<br>
+                Source: localStorage (Backup)<br>
+                Last Update: ${new Date().toLocaleString('ar-EG')}
+            `;
         }
-        
-        const parsedData = JSON.parse(data);
-        console.log('✅ Data loaded:', parsedData.length, 'students');
-        
-        populateFilterDropdowns(parsedData);
-        applyFilters(parsedData);
-        updateStats(parsedData);
-        
-        document.getElementById('debug-storage-info').innerHTML = `
-            <strong>Storage Info:</strong><br>
-            Students: ${parsedData.length} records<br>
-            Storage Key: ${STORAGE_KEY}<br>
-            Last Update: ${new Date().toLocaleString('ar-EG')}
-        `;
     }
 
     // ============================================
@@ -2756,6 +2789,92 @@
             if (now > end)   return `🔒 انتهت فترة الاستعلام عن مادة "${subjectName}" في: ${end.toLocaleString('ar-EG')}`;
         }
         return null;
+    }
+
+    // ============================================
+    // تصدير البيانات إلى ملف JSON
+    // ============================================
+    function exportToJSON() {
+        try {
+            const allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            
+            const exportData = {
+                exportDate: new Date().toISOString(),
+                version: "1.0",
+                school: "محلة قيس الثانوية",
+                students: allData
+            };
+            
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `students_backup_${new Date().toISOString().slice(0,10)}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification(`✅ تم تصدير البيانات بنجاح (${allData.length} طالب)`);
+            console.log('📤 JSON Export completed:', exportData);
+        } catch (error) {
+            showNotification('❌ خطأ في تصدير البيانات: ' + error.message, 'error');
+            console.error('Export error:', error);
+        }
+    }
+
+    // ============================================
+    // استيراد البيانات من ملف JSON
+    // ============================================
+    function importFromJSON() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // التحقق من صحة البيانات
+                    if (!importedData.data || !Array.isArray(importedData.data.students)) {
+                        throw new Error('صيغة الملف غير صحيحة. يجب أن يحتوي على حقل data.students');
+                    }
+                    
+                    // حفظ البيانات في localStorage
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData.data.students));
+                    
+                    if (importedData.data.adminCredentials && Object.keys(importedData.data.adminCredentials).length > 0) {
+                        localStorage.setItem(ADMIN_KEY, JSON.stringify(importedData.data.adminCredentials));
+                    }
+                    
+                    if (importedData.data.settings && Object.keys(importedData.data.settings).length > 0) {
+                        localStorage.setItem(SETTINGS_KEY, JSON.stringify(importedData.data.settings));
+                    }
+                    
+                    if (importedData.data.importedFiles && Array.isArray(importedData.data.importedFiles)) {
+                        localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedData.data.importedFiles));
+                    }
+                    
+                    // إعادة تحميل البيانات
+                    loadData();
+                    loadSettings();
+                    loadImportedFiles();
+                    updateDashboardStats();
+                    renderSubjectsTable();
+                    
+                    showNotification(`✅ تم استيراد البيانات بنجاح (${importedData.data.students.length} طالب)`);
+                    console.log('📥 JSON Import completed:', importedData);
+                } catch (error) {
+                    showNotification('❌ خطأ في استيراد البيانات: ' + error.message, 'error');
+                    console.error('Import error:', error);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     }
 </script>
 
