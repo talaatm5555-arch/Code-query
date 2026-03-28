@@ -915,6 +915,80 @@
             background: var(--light-bg); border-radius: 8px;
             font-size: 13px; color: var(--primary-color);
         }
+
+        /* ===== جدول إعدادات المواد ===== */
+        .subjects-settings-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--white);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .subjects-settings-table thead tr {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+        .subjects-settings-table thead th {
+            padding: 12px 14px;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            border: none;
+        }
+        .subjects-settings-table tbody tr {
+            border-bottom: 1px solid #eee;
+            transition: background 0.15s;
+        }
+        .subjects-settings-table tbody tr:hover { background: var(--light-bg); }
+        .subjects-settings-table tbody td {
+            padding: 10px 12px;
+            font-size: 13px;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+        }
+        .subjects-settings-table input[type="date"],
+        .subjects-settings-table input[type="time"] {
+            padding: 6px 8px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            background: var(--light-bg);
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        .subjects-settings-table input[type="date"]:focus,
+        .subjects-settings-table input[type="time"]:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+        }
+        .subjects-settings-table input:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #eee;
+        }
+        .subject-name-cell {
+            font-weight: bold;
+            color: var(--primary-color);
+            text-align: right !important;
+        }
+        .subject-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .badge-enabled  { background: #d4edda; color: #155724; }
+        .badge-disabled { background: #f8d7da; color: #721c24; }
+        .badge-timed    { background: #fff3cd; color: #856404; }
+        .no-subjects-msg {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -1180,46 +1254,7 @@
                 </div>
             </div>
 
-            <!-- 2. التحكم في نافذة الاستعلام الزمنية -->
-            <div class="time-range-card">
-                <h4>⏰ نافذة زمنية للاستعلام</h4>
-                <p class="subtitle">تحديد الفترة الزمنية المسموح خلالها للطلاب بالاستعلام عن بياناتهم</p>
-
-                <!-- مفتاح تفعيل التوقيت -->
-                <div class="toggle-row">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="enable-time-range" onchange="toggleTimeRangeInputs()">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">تفعيل النافذة الزمنية للاستعلام</span>
-                    <span class="time-status-badge badge-open" id="time-range-status-badge">🔓 الاستعلام مفتوح دائماً</span>
-                </div>
-
-                <div class="time-inputs-grid" id="time-inputs-wrapper">
-                    <div class="time-input-group">
-                        <label>📅 تاريخ البداية</label>
-                        <input type="date" id="query-start-date" disabled>
-                    </div>
-                    <div class="time-input-group">
-                        <label>🕐 وقت البداية</label>
-                        <input type="time" id="query-start-time" disabled>
-                    </div>
-                    <div class="time-input-group">
-                        <label>📅 تاريخ النهاية</label>
-                        <input type="date" id="query-end-date" disabled>
-                    </div>
-                    <div class="time-input-group">
-                        <label>🕐 وقت النهاية</label>
-                        <input type="time" id="query-end-time" disabled>
-                    </div>
-                </div>
-
-                <div style="margin-top:14px; padding:10px 14px; background:var(--light-bg); border-radius:8px; font-size:13px;" id="time-range-live-status">
-                    <!-- يتحدث بالجافاسكريبت -->
-                </div>
-            </div>
-
-            <!-- 3. تحكم في ظهور البيانات واستعلام الطلاب -->
+            <!-- 2. تحكم في ظهور البيانات ومفتاح الطوارئ -->
             <div class="time-range-card">
                 <h4>👁️ تحكم في ظهور البيانات</h4>
                 <p class="subtitle">إعدادات ما يظهر للطلاب عند الاستعلام</p>
@@ -1227,11 +1262,27 @@
                     <input type="checkbox" id="show-exam-keys" checked>
                     <label for="show-exam-keys" style="margin:0; cursor:pointer;">إظهار مفاتيح الامتحان وكلمات المرور في استعلام الطلاب</label>
                 </div>
-                <div class="checkbox-group" style="margin-top:10px;">
+                <div class="checkbox-group" style="margin-top:10px; border: 2px solid #e74c3c; background:#fff5f5;">
                     <input type="checkbox" id="enable-student-query" checked>
-                    <label for="enable-student-query" style="margin:0; cursor:pointer;">تمكين استعلام الطلاب (تجاوز النافذة الزمنية)</label>
+                    <label for="enable-student-query" style="margin:0; cursor:pointer; color:#c0392b; font-weight:bold;">
+                        🚨 مفتاح الطوارئ — تعطيل هذا الخيار يوقف الاستعلام لجميع المواد فوراً بصرف النظر عن إعدادات كل مادة
+                    </label>
                 </div>
-                <button class="btn" onclick="saveSettings()" style="margin-top:15px;">💾 حفظ جميع الإعدادات</button>
+                <button class="btn" onclick="saveSettings()" style="margin-top:15px;">💾 حفظ الإعدادات العامة</button>
+            </div>
+
+            <!-- 4. إعدادات الاستعلام لكل مادة -->
+            <div class="time-range-card">
+                <h4>📚 التحكم في الاستعلام لكل مادة</h4>
+                <p class="subtitle">تحديد إظهار أو إخفاء الاستعلام لكل مادة مستوردة، مع إمكانية تحديد نافذة زمنية خاصة بكل مادة</p>
+                <div id="subjects-settings-container">
+                    <p class="no-subjects-msg">&#x23F3; جاري تحميل المواد...</p>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap; align-items:center;">
+                    <button class="btn btn-success" onclick="saveSubjectSettings()">&#x1F4BE; حفظ إعدادات المواد</button>
+                    <button class="btn btn-warning" onclick="reloadSubjectsTable()">&#x1F504; تحديث قائمة المواد</button>
+                    <span style="font-size:12px; color:#888;">يتم تحديث القائمة تلقائياً عند استيراد بيانات جديدة</span>
+                </div>
             </div>
         </div>
     </div>
@@ -1325,7 +1376,7 @@
             updateDashboardStats();
         } else if (tabId === 'settings-tab') {
             refreshStoredHashDisplay();
-            updateTimeRangeStatus();
+            renderSubjectsTable();
         }
     }
 
@@ -1351,6 +1402,7 @@
         loadSettings();
         loadImportedFiles();
         updateDashboardStats();
+        renderSubjectsTable();
         console.log('✅ System ready');
     };
 
@@ -1549,31 +1601,33 @@
         console.log('🔍 Searching for code:', code);
         console.log('Total students in DB:', data.length);
 
+        // مفتاح الطوارئ — يوقف الكل فوراً
         if (settings.enableQuery === false) {
-            errorMsg.textContent = '❌ خدمة الاستعلام معطلة حالياً';
-            errorMsg.style.display = 'block';
-            resultCard.classList.remove('active');
-            return;
-        }
-
-        if (!isQueryAllowedByTime()) {
-            const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-            const start = s.queryStartDate ? new Date(`${s.queryStartDate}T${s.queryStartTime||'00:00'}`).toLocaleString('ar-EG') : '—';
-            const end   = s.queryEndDate   ? new Date(`${s.queryEndDate}T${s.queryEndTime||'23:59'}`).toLocaleString('ar-EG')   : '—';
-            const now   = new Date();
-            const startDt = s.queryStartDate ? new Date(`${s.queryStartDate}T${s.queryStartTime||'00:00'}`) : null;
-            errorMsg.textContent = startDt && now < startDt
-                ? `⏳ الاستعلام سيبدأ في: ${start}`
-                : `🔒 انتهت فترة الاستعلام — كانت متاحة حتى: ${end}`;
+            errorMsg.textContent = '🚨 خدمة الاستعلام متوقفة مؤقتاً — يرجى المراجعة لاحقاً';
             errorMsg.style.display = 'block';
             resultCard.classList.remove('active');
             return;
         }
 
         if (student) {
+            // التحقق من إعدادات المادة الخاصة بالطالب
+            const subjectBlockMsg = getSubjectBlockMessage(student.subject);
+            if (subjectBlockMsg) {
+                errorMsg.textContent = subjectBlockMsg;
+                errorMsg.style.display = 'block';
+                resultCard.classList.remove('active');
+                return;
+            }
+
             console.log('✅ Student found:', student.name);
             errorMsg.style.display = 'none';
             resultCard.classList.add('active');
+
+            // تحديد إظهار المفاتيح: إعداد المادة يتجاوز العام، وإلا يرث العام
+            const subjectCfg     = getSubjectSettings()[student.subject] || {};
+            const effectiveShowKeys = subjectCfg.showKeys !== null && subjectCfg.showKeys !== undefined
+                ? subjectCfg.showKeys
+                : settings.showKeys !== false;
             
             let html = `
                 <div class="data-row"><span class="data-label">🆔 الكود التعريفي:</span> <span class="data-value">${student.code}</span></div>
@@ -1586,7 +1640,7 @@
                 <div class="data-row"><span class="data-label">📝 نموذج الامتحان:</span> <span class="data-value">${student.form || '-'}</span></div>
             `;
 
-            if (settings.showKeys !== false) {
+            if (effectiveShowKeys) {
                 html += `
                     <div class="secure-info">
                         <h4>🔑 بيانات الدخول للامتحان الإلكتروني</h4>
@@ -2192,6 +2246,7 @@
             loadData();
             loadImportedFiles();
             updateDashboardStats();
+            renderSubjectsTable(); // تحديث جدول المواد في الإعدادات
 
             selectedFiles = [];
             document.getElementById('file-list').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">لم يتم اختيار أي ملفات</p>';
@@ -2464,76 +2519,13 @@
     // ============================================
     // تفعيل / تعطيل حقول التوقيت
     // ============================================
-    function toggleTimeRangeInputs() {
-        const enabled = document.getElementById('enable-time-range').checked;
-        ['query-start-date','query-start-time','query-end-date','query-end-time'].forEach(id => {
-            document.getElementById(id).disabled = !enabled;
-        });
-        updateTimeRangeStatus();
-    }
-
-    function updateTimeRangeStatus() {
-        const enabled = document.getElementById('enable-time-range').checked;
-        const badge   = document.getElementById('time-range-status-badge');
-        const liveEl  = document.getElementById('time-range-live-status');
-        if (!badge || !liveEl) return;
-
-        if (!enabled) {
-            badge.className = 'time-status-badge badge-open';
-            badge.textContent = '🔓 الاستعلام مفتوح دائماً';
-            liveEl.innerHTML = '<span style="color:#0c5460;">ℹ️ لم يتم تفعيل النافذة الزمنية — الاستعلام متاح دائماً.</span>';
-            return;
-        }
-
-        const startDate = document.getElementById('query-start-date').value;
-        const startTime = document.getElementById('query-start-time').value || '00:00';
-        const endDate   = document.getElementById('query-end-date').value;
-        const endTime   = document.getElementById('query-end-time').value || '23:59';
-
-        if (!startDate || !endDate) {
-            badge.className = 'time-status-badge badge-inactive';
-            badge.textContent = '⚠️ حدد التواريخ';
-            liveEl.innerHTML = '<span style="color:#856404;">⚠️ يرجى تحديد تاريخ البداية والنهاية.</span>';
-            return;
-        }
-
-        const now   = new Date();
-        const start = new Date(`${startDate}T${startTime}`);
-        const end   = new Date(`${endDate}T${endTime}`);
-
-        if (now < start) {
-            badge.className = 'time-status-badge badge-inactive';
-            badge.textContent = '⏳ لم يبدأ بعد';
-            liveEl.innerHTML = `<span style="color:#721c24;">⏳ الاستعلام سيبدأ في: <strong>${start.toLocaleString('ar-EG')}</strong></span>`;
-        } else if (now > end) {
-            badge.className = 'time-status-badge badge-inactive';
-            badge.textContent = '🔒 انتهت الفترة';
-            liveEl.innerHTML = `<span style="color:#721c24;">🔒 انتهت فترة الاستعلام في: <strong>${end.toLocaleString('ar-EG')}</strong></span>`;
-        } else {
-            badge.className = 'time-status-badge badge-active';
-            badge.textContent = '✅ نافذة الاستعلام مفتوحة';
-            liveEl.innerHTML = `<span style="color:#155724;">✅ الاستعلام متاح الآن حتى: <strong>${end.toLocaleString('ar-EG')}</strong></span>`;
-        }
-    }
-
     // ============================================
-    // التحقق من النافذة الزمنية عند استعلام الطالب
+    // التحقق من مفتاح الطوارئ فقط
     // ============================================
     function isQueryAllowedByTime() {
         const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-        if (settings.enableQuery === false) return false;          // معطّل كلياً
-        if (!settings.enableTimeRange) return true;               // بدون توقيت = مفتوح
-
-        const startDate = settings.queryStartDate || '';
-        const startTime = settings.queryStartTime || '00:00';
-        const endDate   = settings.queryEndDate   || '';
-        const endTime   = settings.queryEndTime   || '23:59';
-        if (!startDate || !endDate) return true;                  // تواريخ غير مكتملة = مفتوح
-
-        const now   = new Date();
-        const start = new Date(`${startDate}T${startTime}`);
-        const end   = new Date(`${endDate}T${endTime}`);
-        return now >= start && now <= end;
+        // مفتاح الطوارئ — إذا أُغلق يوقف الكل فوراً
+        return settings.enableQuery !== false;
     }
 
     // ============================================
@@ -2541,28 +2533,11 @@
     // ============================================
     function loadSettings() {
         const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-
-        // إعدادات العرض
         const showKeys    = document.getElementById('show-exam-keys');
         const enableQuery = document.getElementById('enable-student-query');
         if (settings.showKeys    !== undefined) showKeys.checked    = settings.showKeys;
         if (settings.enableQuery !== undefined) enableQuery.checked = settings.enableQuery;
-
-        // إعدادات التوقيت
-        const enTR = document.getElementById('enable-time-range');
-        if (enTR) enTR.checked = !!settings.enableTimeRange;
-
-        ['start-date','start-time','end-date','end-time'].forEach(key => {
-            const el = document.getElementById(`query-${key}`);
-            const sk = 'query' + key.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join('');
-            if (el && settings[sk]) el.value = settings[sk];
-        });
-
-        toggleTimeRangeInputs();
         refreshStoredHashDisplay();
-
-        // تحديث حالة الوقت كل دقيقة
-        setInterval(updateTimeRangeStatus, 60000);
     }
 
     // ============================================
@@ -2570,17 +2545,11 @@
     // ============================================
     function saveSettings() {
         const settings = {
-            showKeys:        document.getElementById('show-exam-keys').checked,
-            enableQuery:     document.getElementById('enable-student-query').checked,
-            enableTimeRange: document.getElementById('enable-time-range').checked,
-            queryStartDate:  document.getElementById('query-start-date').value,
-            queryStartTime:  document.getElementById('query-start-time').value,
-            queryEndDate:    document.getElementById('query-end-date').value,
-            queryEndTime:    document.getElementById('query-end-time').value,
+            showKeys:    document.getElementById('show-exam-keys').checked,
+            enableQuery: document.getElementById('enable-student-query').checked,
         };
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        updateTimeRangeStatus();
-        showNotification('✅ تم حفظ جميع الإعدادات بنجاح');
+        showNotification('✅ تم حفظ الإعدادات بنجاح');
     }
 
     // ============================================
@@ -2590,6 +2559,204 @@
         document.getElementById('admin-panel').style.display = 'none';
         document.getElementById('student-section').style.display = 'block';
     };
+
+    // ============================================
+    // إعدادات الاستعلام لكل مادة
+    // ============================================
+    const SUBJECT_SETTINGS_KEY = 'subject_query_settings_v1';
+
+    function getSubjectSettings() {
+        return JSON.parse(localStorage.getItem(SUBJECT_SETTINGS_KEY) || "{}");
+    }
+
+    function getAllSubjects() {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return [...new Set(data.map(d => d.subject).filter(s => s && s !== '-'))].sort();
+    }
+
+    function renderSubjectsTable() {
+        const subjects  = getAllSubjects();
+        const saved     = getSubjectSettings();
+        const globalSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const globalShowKeys = globalSettings.showKeys !== false; // الافتراضي: مُظهَر
+        const container = document.getElementById('subjects-settings-container');
+        if (!container) return;
+
+        if (subjects.length === 0) {
+            container.innerHTML = '<p class="no-subjects-msg">&#x26A0;&#xFE0F; لا توجد مواد مستوردة حتى الآن. قم باستيراد بيانات أولاً.</p>';
+            return;
+        }
+
+        // ملاحظة توضيحية للمستخدم
+        const globalKeysNote = globalShowKeys
+            ? '<span style="color:#155724;">&#x2705; الافتراضي العام: إظهار المفاتيح</span>'
+            : '<span style="color:#721c24;">&#x1F512; الافتراضي العام: إخفاء المفاتيح</span>';
+
+        let html = `
+        <div style="padding:8px 12px; background:var(--light-bg); border-radius:8px; font-size:12px; margin-bottom:10px;">
+            ${globalKeysNote} — يمكنك تخصيص كل مادة بشكل مستقل من الجدول أدناه، أو تركها على "افتراضي" لتَرِث الإعداد العام.
+        </div>
+        <div style="overflow-x:auto;">
+        <table class="subjects-settings-table">
+            <thead>
+                <tr>
+                    <th style="width:30px;">#</th>
+                    <th style="text-align:right; min-width:120px;">اسم المادة</th>
+                    <th style="width:90px;">إظهار الاستعلام</th>
+                    <th style="width:110px;">إظهار المفاتيح</th>
+                    <th style="width:110px;">نافذة زمنية</th>
+                    <th style="min-width:130px;">تاريخ البداية</th>
+                    <th style="min-width:110px;">وقت البداية</th>
+                    <th style="min-width:130px;">تاريخ النهاية</th>
+                    <th style="min-width:110px;">وقت النهاية</th>
+                    <th style="width:100px;">الحالة</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        subjects.forEach((subj, i) => {
+            const cfg          = saved[subj] || {};
+            const enabled      = cfg.enabled    !== false;
+            const useTiming    = !!cfg.useTiming;
+            const startDate    = cfg.startDate  || '';
+            const startTime    = cfg.startTime  || '';
+            const endDate      = cfg.endDate    || '';
+            const endTime      = cfg.endTime    || '';
+            const disabledAttr = (!enabled || !useTiming) ? 'disabled' : '';
+            const statusBadge  = getSubjectStatusBadge(cfg);
+
+            // إظهار المفاتيح: null = يرث العام، true/false = مخصص
+            const showKeysVal  = cfg.showKeys; // undefined = افتراضي
+            const keysInherit  = showKeysVal === undefined || showKeysVal === null;
+            const keysChecked  = keysInherit ? globalShowKeys : showKeysVal;
+            const keysSelectVal = keysInherit ? 'inherit' : (showKeysVal ? 'show' : 'hide');
+
+            html += `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="subject-name-cell">${subj}</td>
+                <td>
+                    <label class="toggle-switch" style="margin:0 auto;">
+                        <input type="checkbox" id="subj-enabled-${i}" ${enabled ? 'checked' : ''}
+                               onchange="onSubjectEnabledChange(${i})">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </td>
+                <td>
+                    <select id="subj-showkeys-${i}" style="padding:5px 8px; border:2px solid #ddd; border-radius:6px; font-size:12px; background:var(--light-bg); width:100%;">
+                        <option value="inherit" ${keysSelectVal==='inherit' ? 'selected' : ''}>↩ افتراضي (${globalShowKeys ? 'إظهار' : 'إخفاء'})</option>
+                        <option value="show"    ${keysSelectVal==='show'    ? 'selected' : ''}>👁 إظهار</option>
+                        <option value="hide"    ${keysSelectVal==='hide'    ? 'selected' : ''}>🙈 إخفاء</option>
+                    </select>
+                </td>
+                <td>
+                    <label class="toggle-switch" style="margin:0 auto;">
+                        <input type="checkbox" id="subj-timing-${i}" ${useTiming ? 'checked' : ''} ${!enabled ? 'disabled' : ''}
+                               onchange="onSubjectTimingChange(${i})">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </td>
+                <td><input type="date" id="subj-start-date-${i}" value="${startDate}" ${disabledAttr}></td>
+                <td><input type="time" id="subj-start-time-${i}" value="${startTime}" ${disabledAttr}></td>
+                <td><input type="date" id="subj-end-date-${i}"   value="${endDate}"   ${disabledAttr}></td>
+                <td><input type="time" id="subj-end-time-${i}"   value="${endTime}"   ${disabledAttr}></td>
+                <td><span class="subject-badge ${statusBadge.cls}">${statusBadge.txt}</span></td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    }
+
+    function getSubjectStatusBadge(cfg) {
+        if (cfg.enabled === false)  return { cls: 'badge-disabled', txt: '&#x1F512; مغلق' };
+        if (!cfg.useTiming)         return { cls: 'badge-enabled',  txt: '&#x1F513; مفتوح' };
+        // has timing
+        const now   = new Date();
+        const start = cfg.startDate ? new Date(`${cfg.startDate}T${cfg.startTime||'00:00'}`) : null;
+        const end   = cfg.endDate   ? new Date(`${cfg.endDate}T${cfg.endTime||'23:59'}`)     : null;
+        if (!start || !end)         return { cls: 'badge-timed',    txt: '&#x26A0; ناقص' };
+        if (now < start)            return { cls: 'badge-inactive', txt: '&#x23F3; لم يبدأ' };
+        if (now > end)              return { cls: 'badge-disabled', txt: '&#x1F512; انتهى' };
+        return                             { cls: 'badge-active',   txt: '&#x2705; نشط' };
+    }
+
+    function onSubjectEnabledChange(i) {
+        const enabled = document.getElementById(`subj-enabled-${i}`).checked;
+        const timingEl = document.getElementById(`subj-timing-${i}`);
+        if (timingEl) timingEl.disabled = !enabled;
+        if (!enabled) {
+            // disable timing inputs too
+            if (timingEl) timingEl.checked = false;
+            ['start-date','start-time','end-date','end-time'].forEach(k => {
+                const el = document.getElementById(`subj-${k}-${i}`);
+                if (el) { el.disabled = true; }
+            });
+        }
+    }
+
+    function onSubjectTimingChange(i) {
+        const enabled = document.getElementById(`subj-timing-${i}`).checked;
+        ['start-date','start-time','end-date','end-time'].forEach(k => {
+            const el = document.getElementById(`subj-${k}-${i}`);
+            if (el) el.disabled = !enabled;
+        });
+    }
+
+    function saveSubjectSettings() {
+        const subjects = getAllSubjects();
+        const settings = {};
+        subjects.forEach((subj, i) => {
+            const keysEl  = document.getElementById(`subj-showkeys-${i}`);
+            const keysVal = keysEl ? keysEl.value : 'inherit';
+            settings[subj] = {
+                enabled:   document.getElementById(`subj-enabled-${i}`)    ? document.getElementById(`subj-enabled-${i}`).checked    : true,
+                showKeys:  keysVal === 'inherit' ? null : (keysVal === 'show'),
+                useTiming: document.getElementById(`subj-timing-${i}`)     ? document.getElementById(`subj-timing-${i}`).checked     : false,
+                startDate: document.getElementById(`subj-start-date-${i}`) ? document.getElementById(`subj-start-date-${i}`).value   : '',
+                startTime: document.getElementById(`subj-start-time-${i}`) ? document.getElementById(`subj-start-time-${i}`).value   : '',
+                endDate:   document.getElementById(`subj-end-date-${i}`)   ? document.getElementById(`subj-end-date-${i}`).value     : '',
+                endTime:   document.getElementById(`subj-end-time-${i}`)   ? document.getElementById(`subj-end-time-${i}`).value     : '',
+            };
+        });
+        localStorage.setItem(SUBJECT_SETTINGS_KEY, JSON.stringify(settings));
+        renderSubjectsTable();
+        showNotification('✅ تم حفظ إعدادات المواد بنجاح');
+    }
+
+    function reloadSubjectsTable() {
+        renderSubjectsTable();
+        showNotification('🔄 تم تحديث قائمة المواد');
+    }
+
+    // التحقق من إذن استعلام مادة معينة
+    function isSubjectQueryAllowed(subjectName) {
+        const saved = getSubjectSettings();
+        if (!subjectName || !saved[subjectName]) return true; // لم تُضبط = مفتوحة
+        const cfg = saved[subjectName];
+        if (cfg.enabled === false) return false;
+        if (!cfg.useTiming) return true;
+        if (!cfg.startDate || !cfg.endDate) return true;
+        const now   = new Date();
+        const start = new Date(`${cfg.startDate}T${cfg.startTime||'00:00'}`);
+        const end   = new Date(`${cfg.endDate}T${cfg.endTime||'23:59'}`);
+        return now >= start && now <= end;
+    }
+
+    function getSubjectBlockMessage(subjectName) {
+        const saved = getSubjectSettings();
+        if (!subjectName || !saved[subjectName]) return null;
+        const cfg = saved[subjectName];
+        if (cfg.enabled === false) return `❌ الاستعلام عن مادة "${subjectName}" غير متاح حالياً`;
+        if (cfg.useTiming && cfg.startDate && cfg.endDate) {
+            const now   = new Date();
+            const start = new Date(`${cfg.startDate}T${cfg.startTime||'00:00'}`);
+            const end   = new Date(`${cfg.endDate}T${cfg.endTime||'23:59'}`);
+            if (now < start) return `⏳ الاستعلام عن مادة "${subjectName}" سيبدأ في: ${start.toLocaleString('ar-EG')}`;
+            if (now > end)   return `🔒 انتهت فترة الاستعلام عن مادة "${subjectName}" في: ${end.toLocaleString('ar-EG')}`;
+        }
+        return null;
+    }
 </script>
 
 </body>
