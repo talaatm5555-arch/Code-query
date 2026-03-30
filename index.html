@@ -1166,6 +1166,7 @@
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                 <button class="btn" onclick="exportData()">📄 تصدير PDF</button>
                 <button class="btn" onclick="exportExcel()">📊 تصدير Excel</button>
+                <button class="btn" onclick="printLabels()" style="background:#6c3483;">🏷️ طباعة ملصقات</button>
                 <button class="btn btn-success" onclick="exportToJSON()">💾 تصدير JSON</button>
                 <button class="btn btn-success" onclick="importFromJSON()">📥 استيراد JSON</button>
                 <button class="btn btn-danger" onclick="clearAllData()">🗑️ مسح كل البيانات</button>
@@ -1297,13 +1298,13 @@
     // ============================================
     const defaultData = [
         {
-            code: "462926566",
-            name: "ياسمين نزيه منير الشناوى",
+            code: "400000000",
+            name: "-------------",
             group: "2-2",
-            subject: "التاريخ",
+            subject: "------",
             examDate: "2026-04-01",
             form: "G11-BEH310",
-            examKey: "f79cd2dc2d1",
+            examKey: "----------",
             password: "123",
             school: "محلة قيس الثانويه",
             examCenter: "محلة قيس الثانويه",
@@ -1627,7 +1628,7 @@
     function searchStudent() {
         const code = document.getElementById('student-code').value.trim();
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        const student = data.find(s => s.code === code);
+        const students = data.filter(s => s.code === code);
         const resultCard = document.getElementById('result-card');
         const errorMsg = document.getElementById('error-msg');
         const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
@@ -1643,51 +1644,75 @@
             return;
         }
 
-        if (student) {
-            // التحقق من إعدادات المادة الخاصة بالطالب
-            const subjectBlockMsg = getSubjectBlockMessage(student.subject);
-            if (subjectBlockMsg) {
-                errorMsg.textContent = subjectBlockMsg;
+        if (students.length > 0) {
+            // تصفية السجلات المتاحة بعد التحقق من إعدادات المواد
+            const allowedStudents = students.filter(student => !getSubjectBlockMessage(student.subject));
+            const blockedMessages = students
+                .map(student => getSubjectBlockMessage(student.subject))
+                .filter(msg => msg);
+
+            if (allowedStudents.length === 0) {
+                // جميع المواد محجوبة — اعرض أول رسالة حجب
+                errorMsg.textContent = blockedMessages[0];
                 errorMsg.style.display = 'block';
                 resultCard.classList.remove('active');
                 return;
             }
 
-            console.log('✅ Student found:', student.name);
+            console.log('✅ Student found:', allowedStudents[0].name, '| Records:', allowedStudents.length);
             errorMsg.style.display = 'none';
             resultCard.classList.add('active');
 
-            // تحديد إظهار المفاتيح: إعداد المادة يتجاوز العام، وإلا يرث العام
-            const subjectCfg     = getSubjectSettings()[student.subject] || {};
-            const effectiveShowKeys = subjectCfg.showKeys !== null && subjectCfg.showKeys !== undefined
-                ? subjectCfg.showKeys
-                : settings.showKeys !== false;
-            
+            const firstStudent = allowedStudents[0];
             let html = `
-                <div class="data-row"><span class="data-label">🆔 الكود التعريفي:</span> <span class="data-value">${student.code}</span></div>
-                <div class="data-row"><span class="data-label">👤 اسم الطالب:</span> <span class="data-value">${student.name}</span></div>
-                <div class="data-row"><span class="data-label">🏫 المجموعة:</span> <span class="data-value">${student.group}</span></div>
-                <div class="data-row"><span class="data-label">🏛️ المدرسة:</span> <span class="data-value">${student.school}</span></div>
-                <div class="data-row"><span class="data-label">🏢 مركز الامتحان:</span> <span class="data-value">${student.examCenter || student.school || '-'}</span></div>
-                <div class="data-row"><span class="data-label">📚 المادة:</span> <span class="data-value">${student.subject || 'عام'}</span></div>
-                <div class="data-row"><span class="data-label">📅 تاريخ الاختبار:</span> <span class="data-value">${formatDate(student.examDate) || '-'}</span></div>
-                <div class="data-row"><span class="data-label">📝 نموذج الامتحان:</span> <span class="data-value">${student.form || '-'}</span></div>
+                <div class="data-row"><span class="data-label">🆔 الكود التعريفي:</span> <span class="data-value">${firstStudent.code}</span></div>
+                <div class="data-row"><span class="data-label">👤 اسم الطالب:</span> <span class="data-value">${firstStudent.name}</span></div>
+                <div class="data-row"><span class="data-label">🏫 المجموعة:</span> <span class="data-value">${firstStudent.group}</span></div>
+                <div class="data-row"><span class="data-label">🏛️ المدرسة:</span> <span class="data-value">${firstStudent.school}</span></div>
+                <div class="data-row"><span class="data-label">🏢 مركز الامتحان:</span> <span class="data-value">${firstStudent.examCenter || firstStudent.school || '-'}</span></div>
             `;
 
-            if (effectiveShowKeys) {
+            // عرض كل مادة في قسم منفصل
+            allowedStudents.forEach((student, idx) => {
+                const subjectCfg = getSubjectSettings()[student.subject] || {};
+                const effectiveShowKeys = subjectCfg.showKeys !== null && subjectCfg.showKeys !== undefined
+                    ? subjectCfg.showKeys
+                    : settings.showKeys !== false;
+
+                if (allowedStudents.length > 1) {
+                    html += `<div style="margin-top:18px; margin-bottom:6px; background:var(--primary-color); color:#fff; padding:8px 14px; border-radius:8px; font-weight:bold; font-size:15px;">
+                        📚 المادة ${idx + 1}: ${student.subject || 'عام'}
+                    </div>`;
+                }
+
                 html += `
-                    <div class="secure-info">
-                        <h4>🔑 بيانات الدخول للامتحان الإلكتروني</h4>
-                        <div class="data-row">
-                            <span class="data-label">مفتاح الامتحان:</span> 
-                            <span class="data-value" style="direction: ltr; font-family: monospace;">${student.examKey}</span>
-                        </div>
-                        <div class="data-row">
-                            <span class="data-label">كلمة المرور:</span> 
-                            <span class="data-value">${student.password}</span>
-                        </div>
-                    </div>
+                    <div class="data-row"><span class="data-label">📚 المادة:</span> <span class="data-value">${student.subject || 'عام'}</span></div>
+                    <div class="data-row"><span class="data-label">📅 تاريخ الاختبار:</span> <span class="data-value">${formatDate(student.examDate) || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">📝 نموذج الامتحان:</span> <span class="data-value">${student.form || '-'}</span></div>
                 `;
+
+                if (effectiveShowKeys) {
+                    html += `
+                        <div class="secure-info">
+                            <h4>🔑 بيانات الدخول للامتحان الإلكتروني</h4>
+                            <div class="data-row">
+                                <span class="data-label">مفتاح الامتحان:</span> 
+                                <span class="data-value" style="direction: ltr; font-family: monospace;">${student.examKey}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">كلمة المرور:</span> 
+                                <span class="data-value">${student.password}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            // إذا كانت هناك مواد محجوبة، أعلم الطالب
+            if (blockedMessages.length > 0) {
+                blockedMessages.forEach(msg => {
+                    html += `<div style="margin-top:10px; background:#fff3cd; color:#856404; padding:10px 14px; border-radius:8px; border:1px solid #ffc107; font-size:14px;">⚠️ ${msg}</div>`;
+                });
             }
 
             document.getElementById('result-content').innerHTML = html;
@@ -2507,6 +2532,94 @@
         a.click();
         URL.revokeObjectURL(url);
         showNotification(`✅ تم تصدير ${data.length} سجل بنجاح`);
+    }
+
+    // ============================================
+    // طباعة ملصقات الطلاب
+    // ============================================
+    function printLabels() {
+        const data = getFilteredDataForExport();
+        if (data.length === 0) { showNotification('⚠️ لا توجد بيانات للطباعة', 'warning'); return; }
+
+        showNotification('🏷️ جاري تحضير الملصقات...');
+
+        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const showKeys = settings.showKeys !== false;
+
+        const labels = data.map(s => `
+            <div class="label-card">
+                <div class="label-header">
+                    <span class="label-school">${s.school && s.school !== '-' ? s.school : 'مدرسة محلة قيس الثانوية'}</span>
+                </div>
+                <div class="label-body">
+                    <div class="label-name">${s.name}</div>
+                    <div class="label-row"><span class="lbl">الكود:</span><span class="val">${s.code}</span></div>
+                    <div class="label-row"><span class="lbl">المجموعة:</span><span class="val">${s.group || '-'}</span></div>
+                    <div class="label-row"><span class="lbl">المادة:</span><span class="val">${s.subject || '-'}</span></div>
+                    <div class="label-row"><span class="lbl">تاريخ الاختبار:</span><span class="val">${formatDate(s.examDate) || '-'}</span></div>
+                    <div class="label-row"><span class="lbl">النموذج:</span><span class="val">${s.form || '-'}</span></div>
+                    ${showKeys ? `
+                    <div class="label-row key-row"><span class="lbl">مفتاح الامتحان:</span><span class="val key-val">${s.examKey || '-'}</span></div>
+                    <div class="label-row key-row"><span class="lbl">كلمة المرور:</span><span class="val key-val">${s.password || '-'}</span></div>
+                    ` : ''}
+                </div>
+            </div>`).join('');
+
+        const win = window.open('', '_blank', 'width=950,height=750');
+        win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl">
+        <head><meta charset="UTF-8"><title>ملصقات الطلاب - محلة قيس الثانوية</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; padding: 15px; color: #2c3e50; }
+            .print-controls { text-align: center; margin-bottom: 20px; }
+            .print-controls button { padding: 10px 25px; background: #1a5f7a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 5px; }
+            .print-controls button:last-child { background: #e74c3c; }
+            h2 { text-align: center; color: #1a5f7a; margin-bottom: 5px; }
+            .meta { text-align: center; font-size: 12px; color: #888; margin-bottom: 20px; }
+            .labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            .label-card {
+                background: white; border: 2px solid #1a5f7a; border-radius: 10px;
+                overflow: hidden; page-break-inside: avoid; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            }
+            .label-header {
+                background: #1a5f7a; color: white; padding: 7px 10px; text-align: center;
+            }
+            .label-school { font-size: 11px; font-weight: bold; }
+            .label-body { padding: 10px 12px; }
+            .label-name {
+                font-size: 14px; font-weight: bold; color: #1a5f7a;
+                text-align: center; margin-bottom: 8px; padding-bottom: 7px;
+                border-bottom: 1px dashed #ccc;
+            }
+            .label-row {
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 3px 0; font-size: 11px; border-bottom: 1px dotted #eee;
+            }
+            .label-row:last-child { border-bottom: none; }
+            .lbl { color: #555; font-weight: bold; min-width: 90px; }
+            .val { color: #2c3e50; font-weight: 600; text-align: left; direction: ltr; }
+            .key-row { background: #fff8e1; border-radius: 4px; padding: 4px 4px; margin-top: 2px; }
+            .key-val { font-family: monospace; color: #6c3483; font-size: 11px; }
+            @media print {
+                body { background: white; padding: 5px; }
+                .print-controls { display: none; }
+                .labels-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+                .label-card { box-shadow: none; border: 1.5px solid #1a5f7a; }
+            }
+            @media print and (max-width: 15cm) {
+                .labels-grid { grid-template-columns: repeat(2, 1fr); }
+            }
+        </style></head>
+        <body>
+            <div class="print-controls">
+                <h2>🏷️ ملصقات الطلاب - مدرسة محلة قيس الثانوية</h2>
+                <div class="meta">إجمالي الملصقات: ${data.length} طالب | تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}</div>
+                <button onclick="window.print()">🖨️ طباعة الملصقات</button>
+                <button onclick="window.close()">✖ إغلاق</button>
+            </div>
+            <div class="labels-grid">${labels}</div>
+        </body></html>`);
+        win.document.close();
     }
 
     // إرجاع البيانات المرئية حالياً في الجدول
