@@ -1272,7 +1272,11 @@
                         🚨 مفتاح الطوارئ — تعطيل هذا الخيار يوقف الاستعلام لجميع المواد فوراً بصرف النظر عن إعدادات كل مادة
                     </label>
                 </div>
-                <button class="btn" onclick="saveSettings()" style="margin-top:15px;">💾 حفظ الإعدادات العامة</button>
+                <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">
+                    <button class="btn" onclick="saveSettings()">💾 حفظ وتنزيل settings.json</button>
+                    <button class="btn btn-warning" onclick="importSettingsFile()">📂 تحميل settings.json</button>
+                </div>
+                <p style="font-size:12px; color:#888; margin-top:8px;">⚠️ بعد الحفظ، ضع ملف <strong>settings.json</strong> بجانب ملف البرنامج حتى تُحمَّل الإعدادات تلقائياً عند الفتح.</p>
             </div>
 
             <!-- 4. إعدادات الاستعلام لكل مادة -->
@@ -1328,6 +1332,88 @@
     let pendingFile = null;
 
     // ============================================
+    // كائن الإعدادات في الذاكرة (يُحمَّل من settings.json)
+    // ============================================
+    let settingsData = {
+        generalSettings:  {},
+        subjectSettings:  {},
+        adminCredentials: {}
+    };
+
+    // ============================================
+    // تحميل الإعدادات من ملف settings.json الخارجي
+    // ============================================
+    async function loadSettingsFromFile() {
+        console.log('⚙️ Loading settings from settings.json...');
+        try {
+            const response = await fetch('settings.json');
+            if (!response.ok) throw new Error('settings.json not found');
+            const data = await response.json();
+            if (data.generalSettings)  settingsData.generalSettings  = data.generalSettings;
+            if (data.subjectSettings)  settingsData.subjectSettings  = data.subjectSettings;
+            if (data.adminCredentials && data.adminCredentials.userHash) {
+                settingsData.adminCredentials = data.adminCredentials;
+                adminCredentials = data.adminCredentials;
+            }
+            console.log('✅ Settings loaded from settings.json');
+        } catch (error) {
+            console.warn('⚠️ Could not load settings.json, using defaults:', error.message);
+        }
+    }
+
+    // ============================================
+    // حفظ الإعدادات — تنزيل ملف settings.json
+    // ============================================
+    function exportSettingsFile() {
+        try {
+            const fileContent = JSON.stringify(settingsData, null, 2);
+            const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'settings.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            console.log('💾 settings.json exported');
+        } catch (err) {
+            console.error('Export settings error:', err);
+        }
+    }
+
+    // ============================================
+    // استيراد ملف settings.json يدوياً
+    // ============================================
+    function importSettingsFile() {
+        const input = document.createElement('input');
+        input.type  = 'file';
+        input.accept = '.json';
+        input.onchange = async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(ev) {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data.generalSettings)  settingsData.generalSettings  = data.generalSettings;
+                    if (data.subjectSettings)  settingsData.subjectSettings  = data.subjectSettings;
+                    if (data.adminCredentials && data.adminCredentials.userHash) {
+                        settingsData.adminCredentials = data.adminCredentials;
+                        adminCredentials = data.adminCredentials;
+                    }
+                    loadSettings();
+                    renderSubjectsTable();
+                    refreshStoredHashDisplay();
+                    showNotification('✅ تم تحميل الإعدادات من الملف بنجاح');
+                } catch (err) {
+                    showNotification('❌ خطأ في قراءة ملف الإعدادات: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    // ============================================
     // دالة التشفير (SHA-256)
     // ============================================
     async function sha256(message) {
@@ -1346,14 +1432,12 @@
     // تهيئة بيانات المسؤول
     // ============================================
     async function initAdminCredentials() {
-        const stored = localStorage.getItem(ADMIN_KEY);
-        if (stored) {
-            adminCredentials = JSON.parse(stored);
-        } else {
+        // تُحمَّل من settings.json عبر loadSettingsFromFile() قبل هذه الدالة
+        // إذا لم تُعثر على بيانات، نولّد الافتراضية
+        if (!adminCredentials.userHash) {
             const uHash = await sha256("admin");
             const pHash = await sha256("123456");
             adminCredentials = { userHash: uHash, passHash: pHash };
-            localStorage.setItem(ADMIN_KEY, JSON.stringify(adminCredentials));
         }
         console.log('✅ Admin credentials initialized');
     }
@@ -1401,6 +1485,7 @@
     // ============================================
     window.onload = async function() {
         console.log('🚀 System initializing...');
+        await loadSettingsFromFile();   // تحميل الإعدادات من settings.json أولاً
         await initAdminCredentials();
         loadData();
         loadSettings();
@@ -1631,7 +1716,7 @@
         const students = data.filter(s => s.code === code);
         const resultCard = document.getElementById('result-card');
         const errorMsg = document.getElementById('error-msg');
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
 
         console.log('🔍 Searching for code:', code);
         console.log('Total students in DB:', data.length);
@@ -1784,7 +1869,8 @@
             const uHash = await sha256(newUser);
             const pHash = await sha256(newPass);
             adminCredentials = { userHash: uHash, passHash: pHash };
-            localStorage.setItem(ADMIN_KEY, JSON.stringify(adminCredentials));
+            settingsData.adminCredentials = adminCredentials;
+            exportSettingsFile();
             
             document.getElementById('new-admin-user').value = '';
             document.getElementById('new-admin-pass').value = '';
@@ -2454,7 +2540,7 @@
         showNotification('📄 جاري فتح نافذة الطباعة...');
 
         const win = window.open('', '_blank', 'width=900,height=700');
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
         const showKeys = settings.showKeys !== false;
 
         const rows = data.map((s, i) => `
@@ -2502,7 +2588,7 @@
         const data = getFilteredDataForExport();
         if (data.length === 0) { showNotification('⚠️ لا توجد بيانات للتصدير', 'warning'); return; }
 
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
         const showKeys = settings.showKeys !== false;
 
         const BOM = '\uFEFF'; // لدعم العربية في Excel
@@ -2543,7 +2629,7 @@
 
         showNotification('🏷️ جاري تحضير الملصقات...');
 
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
         const showKeys = settings.showKeys !== false;
 
         const labels = data.map(s => `
@@ -2670,7 +2756,7 @@
     // التحقق من مفتاح الطوارئ فقط
     // ============================================
     function isQueryAllowedByTime() {
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
         // مفتاح الطوارئ — إذا أُغلق يوقف الكل فوراً
         return settings.enableQuery !== false;
     }
@@ -2679,7 +2765,7 @@
     // الإعدادات - تحميل
     // ============================================
     function loadSettings() {
-        const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const settings = settingsData.generalSettings || {};
         const showKeys    = document.getElementById('show-exam-keys');
         const enableQuery = document.getElementById('enable-student-query');
         if (settings.showKeys    !== undefined) showKeys.checked    = settings.showKeys;
@@ -2691,12 +2777,12 @@
     // الإعدادات - حفظ
     // ============================================
     function saveSettings() {
-        const settings = {
+        settingsData.generalSettings = {
             showKeys:    document.getElementById('show-exam-keys').checked,
             enableQuery: document.getElementById('enable-student-query').checked,
         };
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        showNotification('✅ تم حفظ الإعدادات بنجاح');
+        exportSettingsFile();
+        showNotification('✅ تم حفظ الإعدادات بنجاح - احتفظ بالملف بجانب البرنامج');
     }
 
     // ============================================
@@ -2713,7 +2799,7 @@
     const SUBJECT_SETTINGS_KEY = 'subject_query_settings_v1';
 
     function getSubjectSettings() {
-        return JSON.parse(localStorage.getItem(SUBJECT_SETTINGS_KEY) || "{}");
+        return settingsData.subjectSettings || {};
     }
 
     function getAllSubjects() {
@@ -2724,7 +2810,7 @@
     function renderSubjectsTable() {
         const subjects  = getAllSubjects();
         const saved     = getSubjectSettings();
-        const globalSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        const globalSettings = settingsData.generalSettings || {};
         const globalShowKeys = globalSettings.showKeys !== false; // الافتراضي: مُظهَر
         const container = document.getElementById('subjects-settings-container');
         if (!container) return;
@@ -2866,9 +2952,10 @@
                 endTime:   document.getElementById(`subj-end-time-${i}`)   ? document.getElementById(`subj-end-time-${i}`).value     : '',
             };
         });
-        localStorage.setItem(SUBJECT_SETTINGS_KEY, JSON.stringify(settings));
+        settingsData.subjectSettings = settings;
+        exportSettingsFile();
         renderSubjectsTable();
-        showNotification('✅ تم حفظ إعدادات المواد بنجاح');
+        showNotification('✅ تم حفظ إعدادات المواد بنجاح - احتفظ بالملف بجانب البرنامج');
     }
 
     function reloadSubjectsTable() {
@@ -2961,11 +3048,12 @@
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData.data.students));
                     
                     if (importedData.data.adminCredentials && Object.keys(importedData.data.adminCredentials).length > 0) {
-                        localStorage.setItem(ADMIN_KEY, JSON.stringify(importedData.data.adminCredentials));
+                        adminCredentials = importedData.data.adminCredentials;
+                        settingsData.adminCredentials = adminCredentials;
                     }
                     
                     if (importedData.data.settings && Object.keys(importedData.data.settings).length > 0) {
-                        localStorage.setItem(SETTINGS_KEY, JSON.stringify(importedData.data.settings));
+                        settingsData.generalSettings = importedData.data.settings;
                     }
                     
                     if (importedData.data.importedFiles && Array.isArray(importedData.data.importedFiles)) {

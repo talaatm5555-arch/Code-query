@@ -1,8 +1,5 @@
 {
-  "generalSettings": {
-    "showKeys": true,
-    "enableQuery": true
-  },
+  "generalSettings": {},
   "subjectSettings": {
     "------": {
       "enabled": false,
