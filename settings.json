@@ -1,5 +1,8 @@
 {
-  "generalSettings": {},
+  "generalSettings": {
+    "showKeys": true,
+    "enableQuery": true
+  },
   "subjectSettings": {
     "------": {
       "enabled": false,
@@ -38,31 +41,31 @@
       "endTime": ""
     },
     "G11-BEH310-French-Ar -31-3-2026-v1": {
-      "enabled": false,
+      "enabled": true,
       "showKeys": null,
-      "useTiming": false,
-      "startDate": "",
-      "startTime": "",
-      "endDate": "",
-      "endTime": ""
+      "useTiming": true,
+      "startDate": "2026-03-31",
+      "startTime": "10:15",
+      "endDate": "2026-03-31",
+      "endTime": "11:59"
     },
     "G11-BEH310-French-Ar -31-3-2026-v2": {
-      "enabled": false,
+      "enabled": true,
       "showKeys": null,
-      "useTiming": false,
-      "startDate": "",
-      "startTime": "",
-      "endDate": "",
-      "endTime": ""
+      "useTiming": true,
+      "startDate": "2026-03-31",
+      "startTime": "10:15",
+      "endDate": "2026-03-31",
+      "endTime": "11:59"
     },
     "G11-BEH310-French-Ar -31-3-2026-v3": {
-      "enabled": false,
+      "enabled": true,
       "showKeys": null,
-      "useTiming": false,
-      "startDate": "",
-      "startTime": "",
-      "endDate": "",
-      "endTime": ""
+      "useTiming": true,
+      "startDate": "2026-03-31",
+      "startTime": "10:15",
+      "endDate": "2026-03-31",
+      "endTime": "11:59"
     }
   },
   "adminCredentials": {}
