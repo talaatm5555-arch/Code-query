@@ -2951,49 +2951,35 @@
             reader.onload = function(event) {
                 try {
                     const importedData = JSON.parse(event.target.result);
-
-                    // دعم بنيتين: البنية الجديدة { data: { students } } أو البنية المُصدَّرة { students }
-                    let students, adminCredentials, settings, importedFiles;
-
-                    if (importedData.data && Array.isArray(importedData.data.students)) {
-                        // البنية القديمة: { data: { students, adminCredentials, settings, importedFiles } }
-                        students         = importedData.data.students;
-                        adminCredentials = importedData.data.adminCredentials;
-                        settings         = importedData.data.settings;
-                        importedFiles    = importedData.data.importedFiles;
-                    } else if (Array.isArray(importedData.students)) {
-                        // البنية المُصدَّرة من exportToJSON: { students, exportDate, ... }
-                        students         = importedData.students;
-                        adminCredentials = importedData.adminCredentials;
-                        settings         = importedData.settings;
-                        importedFiles    = importedData.importedFiles;
-                    } else {
-                        throw new Error('صيغة الملف غير صحيحة — لم يتم العثور على بيانات الطلاب');
+                    
+                    // التحقق من صحة البيانات
+                    if (!importedData.data || !Array.isArray(importedData.data.students)) {
+                        throw new Error('صيغة الملف غير صحيحة. يجب أن يحتوي على حقل data.students');
                     }
-
+                    
                     // حفظ البيانات في localStorage
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-
-                    if (adminCredentials && Object.keys(adminCredentials).length > 0) {
-                        localStorage.setItem(ADMIN_KEY, JSON.stringify(adminCredentials));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData.data.students));
+                    
+                    if (importedData.data.adminCredentials && Object.keys(importedData.data.adminCredentials).length > 0) {
+                        localStorage.setItem(ADMIN_KEY, JSON.stringify(importedData.data.adminCredentials));
                     }
-
-                    if (settings && Object.keys(settings).length > 0) {
-                        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+                    
+                    if (importedData.data.settings && Object.keys(importedData.data.settings).length > 0) {
+                        localStorage.setItem(SETTINGS_KEY, JSON.stringify(importedData.data.settings));
                     }
-
-                    if (importedFiles && Array.isArray(importedFiles)) {
-                        localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedFiles));
+                    
+                    if (importedData.data.importedFiles && Array.isArray(importedData.data.importedFiles)) {
+                        localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedData.data.importedFiles));
                     }
-
+                    
                     // إعادة تحميل البيانات
                     loadData();
                     loadSettings();
                     loadImportedFiles();
                     updateDashboardStats();
                     renderSubjectsTable();
-
-                    showNotification(`✅ تم استيراد البيانات بنجاح (${students.length} طالب)`);
+                    
+                    showNotification(`✅ تم استيراد البيانات بنجاح (${importedData.data.students.length} طالب)`);
                     console.log('📥 JSON Import completed:', importedData);
                 } catch (error) {
                     showNotification('❌ خطأ في استيراد البيانات: ' + error.message, 'error');
