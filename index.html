@@ -1056,7 +1056,13 @@
             <button class="btn btn-danger" onclick="logoutAdmin()">خروج</button>
         </div>
 
-        <!-- التبويبات -->
+        <!-- بانر توضيحي عن آلية الحفظ -->
+        <div style="background:#e8f4f8; border:1.5px solid #57c5b6; border-radius:10px; padding:12px 18px; margin-bottom:18px; font-size:13px; color:#1a5f7a; line-height:1.7;">
+            💾 <strong>آلية الحفظ:</strong> لا يتم حفظ أي شيء في المتصفح. عند أي تعديل يُنزَّل الملف المحدَّث تلقائياً على جهازك.
+            ارفع <strong>settings.json</strong> و/أو <strong>students_data.json</strong> على GitHub بعد كل تعديل حتى تُطبَّق التغييرات على جميع المستخدمين.
+            <br>
+            <span id="enc-status-banner" style="font-weight:bold;">🔒 حالة التشفير: جاري التحقق...</span>
+        </div>
         <div class="tabs-container">
             <div class="tabs">
                 <button class="tab-btn active" onclick="openTab('dashboard-tab', this)">📊 لوحة المعلومات</button>
@@ -1175,9 +1181,17 @@
 
             <!-- شريط الفلترة -->
             <div class="filter-bar">
-                <div class="filter-group">
-                    <label for="filter-name">🔍 بحث بالاسم أو الكود</label>
-                    <input type="text" id="filter-name" placeholder="اكتب الاسم أو الكود..." oninput="applyFilters()">
+                <div class="filter-group" style="flex: 2; min-width: 220px;">
+                    <label for="filter-name">🔍 بحث بالاسم أو الكود أو المادة</label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="filter-name" placeholder="اكتب الاسم، الكود، أو اسم المادة..." oninput="applyFilters()" style="flex:1;">
+                        <select id="filter-search-mode" onchange="applyFilters()" style="padding:9px 8px; border:2px solid #ddd; border-radius:8px; font-size:13px; background:var(--light-bg); color:var(--text-dark);">
+                            <option value="all">الكل</option>
+                            <option value="name">الاسم فقط</option>
+                            <option value="code">الكود فقط</option>
+                            <option value="subject">المادة فقط</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="filter-group">
                     <label for="filter-subject">📚 المادة الدراسية</label>
@@ -1276,7 +1290,7 @@
                     <button class="btn" onclick="saveSettings()">💾 حفظ وتنزيل settings.json</button>
                     <button class="btn btn-warning" onclick="importSettingsFile()">📂 تحميل settings.json</button>
                 </div>
-                <p style="font-size:12px; color:#888; margin-top:8px;">⚠️ بعد الحفظ، ضع ملف <strong>settings.json</strong> بجانب ملف البرنامج حتى تُحمَّل الإعدادات تلقائياً عند الفتح.</p>
+                <p style="font-size:12px; color:#888; margin-top:8px;">⚠️ بعد الحفظ سيُنزَّل <strong>settings.json</strong> تلقائياً — ارفعه على GitHub ليُطبَّق على جميع المستخدمين.</p>
             </div>
 
             <!-- 4. إعدادات الاستعلام لكل مادة -->
@@ -1300,29 +1314,21 @@
     // ============================================
     // البيانات الافتراضية من ملف PDF المرفق
     // ============================================
-    const defaultData = [
-        {
-            code: "400000000",
-            name: "-------------",
-            group: "2-2",
-            subject: "------",
-            examDate: "2026-04-01",
-            form: "G11-BEH310",
-            examKey: "----------",
-            password: "123",
-            school: "محلة قيس الثانويه",
-            examCenter: "محلة قيس الثانويه",
-            sourceFile: "G11-BEH310-History-Ar-1-4-2026-v1.pdf"
-        }
-    ];
+    const defaultData = [];
 
     // ============================================
-    // مفاتيح التخزين المحلي - نسخة جديدة لضمان عدم التعارض
+    // التخزين في الذاكرة فقط — لا localStorage
+    // جميع البيانات تُحمَّل من الملفات الخارجية
+    // وتُحفظ بتنزيل ملفات JSON محدَّثة
     // ============================================
-    const STORAGE_KEY = 'school_students_data_v4';
-    const ADMIN_KEY = 'admin_credentials_v4';
-    const SETTINGS_KEY = 'system_settings_v4';
-    const IMPORTED_FILES_KEY = 'imported_files_v4';
+    let _studentsDB     = [];   // يحل محل STORAGE_KEY
+    let _importedFiles  = [];   // يحل محل IMPORTED_FILES_KEY
+
+    // دوال قراءة/كتابة الذاكرة (واجهة موحدة بديلة عن localStorage)
+    function dbGetStudents()            { return _studentsDB; }
+    function dbSetStudents(data)        { _studentsDB = data; }
+    function dbGetImportedFiles()       { return _importedFiles; }
+    function dbSetImportedFiles(data)   { _importedFiles = data; }
 
     // ============================================
     // متغيرات النظام
@@ -1330,6 +1336,56 @@
     let adminCredentials = { userHash: "", passHash: "" };
     let selectedFiles = [];
     let pendingFile = null;
+
+    // ============================================
+    // محرك التشفير AES-256-GCM
+    // المفتاح يُدخَل من المسؤول ولا يُخزَّن أبداً
+    // ============================================
+    let _encKey = null; // CryptoKey في الذاكرة فقط
+
+    async function deriveKey(password) {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: enc.encode('mqays-school-2026'), iterations: 100000, hash: 'SHA-256' },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    async function encryptData(obj) {
+        if (!_encKey) throw new Error('لم يتم تعيين مفتاح التشفير');
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const enc = new TextEncoder();
+        const cipher = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            _encKey,
+            enc.encode(JSON.stringify(obj))
+        );
+        // دمج IV + بيانات مشفرة ثم تحويل لـ base64
+        const combined = new Uint8Array(iv.byteLength + cipher.byteLength);
+        combined.set(iv, 0);
+        combined.set(new Uint8Array(cipher), iv.byteLength);
+        return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptData(b64) {
+        if (!_encKey) throw new Error('لم يتم تعيين مفتاح التشفير');
+        const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const iv   = combined.slice(0, 12);
+        const data = combined.slice(12);
+        const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, _encKey, data);
+        return JSON.parse(new TextDecoder().decode(plain));
+    }
+
+    function isEncrypted(obj) {
+        // الملف المشفر يحتوي على حقل "enc" فقط
+        return obj && typeof obj.enc === 'string' && Object.keys(obj).length === 1;
+    }
 
     // ============================================
     // كائن الإعدادات في الذاكرة (يُحمَّل من settings.json)
@@ -1348,7 +1404,16 @@
         try {
             const response = await fetch('settings.json');
             if (!response.ok) throw new Error('settings.json not found');
-            const data = await response.json();
+            const raw = await response.json();
+
+            // فك التشفير إن كان الملف مشفراً
+            let data = raw;
+            if (isEncrypted(raw)) {
+                if (!_encKey) { console.warn('⚠️ Encrypted settings.json but no key set yet'); return; }
+                try { data = await decryptData(raw.enc); }
+                catch(e) { console.error('❌ فشل فك تشفير settings.json:', e); return; }
+            }
+
             if (data.generalSettings)  settingsData.generalSettings  = data.generalSettings;
             if (data.subjectSettings)  settingsData.subjectSettings  = data.subjectSettings;
             if (data.adminCredentials && data.adminCredentials.userHash) {
@@ -1364,25 +1429,60 @@
     // ============================================
     // حفظ الإعدادات — تنزيل ملف settings.json
     // ============================================
-    function exportSettingsFile() {
+    async function exportSettingsFile() {
         try {
-            const fileContent = JSON.stringify(settingsData, null, 2);
-            const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8;' });
+            let content;
+            if (_encKey) {
+                const encrypted = await encryptData(settingsData);
+                content = JSON.stringify({ enc: encrypted }, null, 2);
+            } else {
+                content = JSON.stringify(settingsData, null, 2);
+            }
+            const blob = new Blob([content], { type: 'application/json;charset=utf-8;' });
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
             a.download = 'settings.json';
             a.click();
             URL.revokeObjectURL(url);
-            console.log('💾 settings.json exported');
+            console.log('💾 settings.json exported' + (_encKey ? ' (encrypted)' : ''));
         } catch (err) {
             console.error('Export settings error:', err);
+            showNotification('❌ خطأ في تصدير الإعدادات: ' + err.message, 'error');
         }
     }
 
     // ============================================
-    // استيراد ملف settings.json يدوياً
+    // تصدير بيانات الطلاب — تنزيل students_data.json
     // ============================================
+    async function exportStudentsFile(studentsArray) {
+        try {
+            const payload = {
+                exportDate: new Date().toISOString(),
+                version: "1.0",
+                school: "محلة قيس الثانوية",
+                students: studentsArray || dbGetStudents()
+            };
+            let content;
+            if (_encKey) {
+                const encrypted = await encryptData(payload);
+                content = JSON.stringify({ enc: encrypted }, null, 2);
+            } else {
+                content = JSON.stringify(payload, null, 2);
+            }
+            const blob = new Blob([content], { type: 'application/json;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'students_data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            console.log('💾 students_data.json exported' + (_encKey ? ' (encrypted)' : ''));
+        } catch (err) {
+            console.error('Export students error:', err);
+            showNotification('❌ خطأ في تصدير بيانات الطلاب: ' + err.message, 'error');
+        }
+    }
     function importSettingsFile() {
         const input = document.createElement('input');
         input.type  = 'file';
@@ -1393,7 +1493,12 @@
             const reader = new FileReader();
             reader.onload = async function(ev) {
                 try {
-                    const data = JSON.parse(ev.target.result);
+                    const raw = JSON.parse(ev.target.result);
+                    let data = raw;
+                    if (isEncrypted(raw)) {
+                        if (!_encKey) throw new Error('الملف مشفر — يجب إدخال مفتاح التشفير أولاً');
+                        data = await decryptData(raw.enc);
+                    }
                     if (data.generalSettings)  settingsData.generalSettings  = data.generalSettings;
                     if (data.subjectSettings)  settingsData.subjectSettings  = data.subjectSettings;
                     if (data.adminCredentials && data.adminCredentials.userHash) {
@@ -1500,57 +1605,53 @@
     // ============================================
     async function loadData() {
         console.log('📊 Loading data from students_data.json...');
-        
         try {
-            // محاولة جلب البيانات من ملف JSON خارجي
             const response = await fetch('students_data.json');
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            const raw = await response.json();
+
+            // فك التشفير إن كان الملف مشفراً
+            let jsonData = raw;
+            if (isEncrypted(raw)) {
+                if (!_encKey) throw new Error('الملف مشفر ولم يتم إدخال مفتاح التشفير بعد');
+                try { jsonData = await decryptData(raw.enc); }
+                catch(e) { throw new Error('فشل فك التشفير — تأكد من صحة مفتاح التشفير'); }
             }
-            
-            const jsonData = await response.json();
+
             const parsedData = jsonData.students || [];
-            
-            // حفظ البيانات في localStorage كنسخة احتياطية
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
-            
+            dbSetStudents(parsedData);
             console.log('✅ Data loaded from file:', parsedData.length, 'students');
-            
+
             populateFilterDropdowns(parsedData);
             applyFilters(parsedData);
             updateStats(parsedData);
-            
+
             document.getElementById('debug-storage-info').innerHTML = `
                 <strong>Storage Info:</strong><br>
                 Students: ${parsedData.length} records<br>
-                Source: students_data.json<br>
+                Source: students_data.json ${_encKey ? '🔒 مشفر' : '🔓 غير مشفر'}<br>
                 Last Update: ${new Date().toLocaleString('ar-EG')}
             `;
         } catch (error) {
-            console.warn('⚠️ Could not load from students_data.json, trying localStorage...', error);
-            
-            // في حالة الفشل، محاولة تحميل من localStorage
-            let data = localStorage.getItem(STORAGE_KEY);
-            
-            if (!data || JSON.parse(data).length === 0) {
-                console.log('⚠️ No data found, loading default data');
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultData));
-                data = JSON.stringify(defaultData);
-                showNotification('تم تحميل البيانات الافتراضية');
+            console.warn('⚠️ Could not load students_data.json:', error.message);
+
+            // في حالة الفشل استخدم البيانات الافتراضية فقط إن لم يكن هناك بيانات في الذاكرة
+            if (dbGetStudents().length === 0) {
+                dbSetStudents(defaultData);
             }
-            
-            const parsedData = JSON.parse(data);
-            console.log('✅ Data loaded from localStorage:', parsedData.length, 'students');
-            
+            const parsedData = dbGetStudents();
+
             populateFilterDropdowns(parsedData);
             applyFilters(parsedData);
             updateStats(parsedData);
-            
+
             document.getElementById('debug-storage-info').innerHTML = `
                 <strong>Storage Info:</strong><br>
                 Students: ${parsedData.length} records<br>
-                Source: localStorage (Backup)<br>
+                Source: ${error.message.includes('مفتاح') || error.message.includes('تشفير')
+                    ? '⚠️ ' + error.message
+                    : 'البيانات الافتراضية'}<br>
                 Last Update: ${new Date().toLocaleString('ar-EG')}
             `;
         }
@@ -1594,25 +1695,32 @@
     // تطبيق الفلاتر
     // ============================================
     function applyFilters(sourceData) {
-        const allData = sourceData || JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        const nameQ    = (document.getElementById('filter-name')    ? document.getElementById('filter-name').value.trim().toLowerCase()    : '');
-        const subjectQ = (document.getElementById('filter-subject') ? document.getElementById('filter-subject').value : '');
-        const dateQ    = (document.getElementById('filter-date')    ? document.getElementById('filter-date').value    : '');
-        const groupQ   = (document.getElementById('filter-group')   ? document.getElementById('filter-group').value  : '');
+        const allData  = sourceData || dbGetStudents();
+        const q        = (document.getElementById('filter-name')        ? document.getElementById('filter-name').value.trim().toLowerCase()        : '');
+        const mode     = (document.getElementById('filter-search-mode') ? document.getElementById('filter-search-mode').value                       : 'all');
+        const subjectQ = (document.getElementById('filter-subject')     ? document.getElementById('filter-subject').value                           : '');
+        const dateQ    = (document.getElementById('filter-date')        ? document.getElementById('filter-date').value                              : '');
+        const groupQ   = (document.getElementById('filter-group')       ? document.getElementById('filter-group').value                             : '');
 
         const filtered = allData.filter(s => {
-            const matchName    = !nameQ    || s.name.toLowerCase().includes(nameQ) || s.code.includes(nameQ);
+            let matchSearch = true;
+            if (q) {
+                if      (mode === 'name')    matchSearch = s.name.toLowerCase().includes(q);
+                else if (mode === 'code')    matchSearch = s.code.includes(q);
+                else if (mode === 'subject') matchSearch = (s.subject || '').toLowerCase().includes(q);
+                else /* all */              matchSearch = s.name.toLowerCase().includes(q) || s.code.includes(q) || (s.subject || '').toLowerCase().includes(q);
+            }
             const matchSubject = !subjectQ || s.subject === subjectQ;
             const matchDate    = !dateQ    || s.examDate === dateQ;
             const matchGroup   = !groupQ   || s.group === groupQ;
-            return matchName && matchSubject && matchDate && matchGroup;
+            return matchSearch && matchSubject && matchDate && matchGroup;
         });
 
         renderTable(filtered);
 
         const infoEl = document.getElementById('filter-results-info');
         if (infoEl) {
-            const active = [nameQ, subjectQ, dateQ, groupQ].filter(Boolean).length;
+            const active = [q, subjectQ, dateQ, groupQ].filter(Boolean).length;
             infoEl.textContent = active > 0
                 ? `🔍 نتائج الفلتر: ${filtered.length} من أصل ${allData.length} طالب`
                 : `📋 إجمالي السجلات: ${allData.length} طالب`;
@@ -1622,8 +1730,10 @@
     function resetFilters() {
         ['filter-name','filter-subject','filter-date','filter-group'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.tagName === 'SELECT' ? el.value = '' : el.value = '';
+            if (el) el.value = '';
         });
+        const modeEl = document.getElementById('filter-search-mode');
+        if (modeEl) modeEl.value = 'all';
         applyFilters();
     }
 
@@ -1678,8 +1788,8 @@
     // تحديث لوحة المعلومات
     // ============================================
     function updateDashboardStats() {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        const importedFiles = JSON.parse(localStorage.getItem(IMPORTED_FILES_KEY) || "[]");
+        const data = dbGetStudents();
+        const importedFiles = dbGetImportedFiles();
         
         document.getElementById('total-students').innerText = data.length;
         
@@ -1700,9 +1810,7 @@
             <strong>Storage Info:</strong><br>
             Students: ${data.length} records<br>
             Imported Files: ${importedFiles.length} files<br>
-            Storage Keys:<br>
-            - Students: ${STORAGE_KEY}<br>
-            - Files: ${IMPORTED_FILES_KEY}<br>
+            المصدر: students_data.json (ذاكرة مؤقتة)<br>
             Last Update: ${now.toLocaleString('ar-EG')}
         `;
     }
@@ -1712,7 +1820,7 @@
     // ============================================
     function searchStudent() {
         const code = document.getElementById('student-code').value.trim();
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        const data = dbGetStudents();
         const students = data.filter(s => s.code === code);
         const resultCard = document.getElementById('result-card');
         const errorMsg = document.getElementById('error-msg');
@@ -1839,23 +1947,55 @@
         console.log('Stored hash:', adminCredentials.userHash.substring(0, 10) + '...');
 
         if (uHash === adminCredentials.userHash && pHash === adminCredentials.passHash) {
+
+            // طلب مفتاح التشفير
+            const encKeyInput = prompt('🔑 أدخل مفتاح التشفير للوصول إلى البيانات:\n(اتركه فارغاً إذا لم تكن الملفات مشفرة بعد)');
+            if (encKeyInput === null) return; // ضغط إلغاء
+
+            if (encKeyInput.trim() !== '') {
+                try {
+                    _encKey = await deriveKey(encKeyInput.trim());
+                    console.log('🔑 Encryption key set');
+                    // إعادة تحميل الملفات بعد تعيين المفتاح لفك تشفيرها
+                    await loadSettingsFromFile();
+                    await initAdminCredentials();
+                    loadSettings();
+                } catch(e) {
+                    console.error('Key derivation error:', e);
+                }
+            } else {
+                _encKey = null;
+                console.log('⚠️ No encryption key set — files will be saved unencrypted');
+            }
+
             document.getElementById('admin-panel').style.display = 'block';
             document.getElementById('student-section').style.display = 'none';
             document.querySelector('.admin-login-trigger').style.display = 'none';
-            loadData();
+
+            // تحديث بانر حالة التشفير
+            const banner = document.getElementById('enc-status-banner');
+            if (banner) banner.innerHTML = _encKey
+                ? '🔒 التشفير مفعّل — الملفات محمية بـ AES-256'
+                : '⚠️ التشفير غير مفعّل — الملفات ستُحفظ بدون تشفير';
+
+            // تحميل البيانات المشفرة
+            await loadData();
             loadImportedFiles();
             updateDashboardStats();
-            showNotification('✅ تم تسجيل الدخول بنجاح');
+            showNotification('✅ تم تسجيل الدخول بنجاح' + (_encKey ? ' 🔒 التشفير مفعّل' : ' ⚠️ بدون تشفير'));
         } else {
             alert("❌ بيانات الاعتماد غير صحيحة");
         }
     }
 
     function logoutAdmin() {
+        _encKey = null; // مسح مفتاح التشفير من الذاكرة فوراً
+        dbSetStudents([]);
+        dbSetImportedFiles([]);
         document.getElementById('admin-panel').style.display = 'none';
         document.getElementById('student-section').style.display = 'block';
         document.querySelector('.admin-login-trigger').style.display = 'block';
-        showNotification('✅ تم تسجيل الخروج');
+        showNotification('✅ تم تسجيل الخروج وتنظيف الذاكرة');
     }
 
     // ============================================
@@ -1888,7 +2028,7 @@
     // إدارة الملفات المستوردة - تم الإصلاح
     // ============================================
     function loadImportedFiles() {
-        const importedFiles = JSON.parse(localStorage.getItem(IMPORTED_FILES_KEY) || "[]");
+        const importedFiles = dbGetImportedFiles();
         const container = document.getElementById('imported-files-container');
         const countSpan = document.getElementById('imported-count');
         
@@ -2133,7 +2273,7 @@
             return;
         }
 
-        const importedFiles = JSON.parse(localStorage.getItem(IMPORTED_FILES_KEY) || "[]");
+        const importedFiles = dbGetImportedFiles();
         const existingFileNames = importedFiles.map(f => f.name);
 
         console.log('🔍 Checking for duplicates...');
@@ -2338,8 +2478,8 @@
         `;
 
         try {
-            let importedFiles = JSON.parse(localStorage.getItem(IMPORTED_FILES_KEY) || "[]");
-            let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            let importedFiles = dbGetImportedFiles();
+            let currentData = dbGetStudents();
             const now = new Date();
             let totalImported = 0;
 
@@ -2381,17 +2521,22 @@
                 totalImported += studentsFromFile.length;
             }
 
-            localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedFiles));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+            dbSetImportedFiles(importedFiles);
+            dbSetStudents(currentData);
+            // تنزيل students_data.json المحدَّث تلقائياً
+            exportStudentsFile(currentData);
             console.log('✅ Import complete. Total students now:', currentData.length);
 
-            statusDiv.innerHTML += `<br><strong style="color: var(--success);">✅ تم الاستيراد بنجاح | إجمالي الطلاب المضافين: ${totalImported}</strong>`;
-            showNotification(`✅ تم استيراد ${selectedFiles.length} ملف | ${totalImported} طالب`);
+            statusDiv.innerHTML += `<br><strong style="color: var(--success);">✅ تم الاستيراد بنجاح | إجمالي الطلاب المضافين: ${totalImported}</strong><br><span style="color:#856404;">⬆️ تم تنزيل students_data.json — ارفعه على GitHub لتحديث البيانات</span>`;
+            showNotification(`✅ تم استيراد ${selectedFiles.length} ملف | ${totalImported} طالب — ارفع students_data.json على GitHub`);
 
-            loadData();
+            // عرض البيانات مباشرة من الذاكرة بدون إعادة جلب من الملف
+            populateFilterDropdowns(currentData);
+            applyFilters(currentData);
+            updateStats(currentData);
             loadImportedFiles();
             updateDashboardStats();
-            renderSubjectsTable(); // تحديث جدول المواد في الإعدادات
+            renderSubjectsTable();
 
             selectedFiles = [];
             document.getElementById('file-list').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">لم يتم اختيار أي ملفات</p>';
@@ -2425,8 +2570,8 @@
 
         async function doReplace() {
             try {
-                let importedFiles = JSON.parse(localStorage.getItem(IMPORTED_FILES_KEY) || "[]");
-                let currentData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+                let importedFiles = dbGetImportedFiles();
+                let currentData = dbGetStudents();
 
                 // حذف سجلات الملف القديم من بيانات الطلاب
                 currentData = currentData.filter(s => s.sourceFile !== pendingFile.name);
@@ -2462,11 +2607,16 @@
                 });
 
                 currentData = currentData.concat(studentsFromFile);
-                localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedFiles));
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+                dbSetImportedFiles(importedFiles);
+                dbSetStudents(currentData);
+                // تنزيل students_data.json المحدَّث تلقائياً
+                exportStudentsFile(currentData);
 
-                showNotification(`🔄 تم استبدال الملف | ${studentsFromFile.length} طالب`);
-                loadData();
+                showNotification(`🔄 تم استبدال الملف | ${studentsFromFile.length} طالب — ارفع students_data.json على GitHub`);
+                // عرض من الذاكرة مباشرة
+                populateFilterDropdowns(currentData);
+                applyFilters(currentData);
+                updateStats(currentData);
                 loadImportedFiles();
                 updateDashboardStats();
                 pendingFile = null;
@@ -2499,7 +2649,7 @@
     // ============================================
     function clearImportedFiles() {
         if(confirm("⚠️ هل أنت متأكد من مسح سجل الملفات المستوردة؟ لن يتم حذف بيانات الطلاب.")) {
-            localStorage.removeItem(IMPORTED_FILES_KEY);
+            dbSetImportedFiles([]);
             loadImportedFiles();
             updateDashboardStats();
             showNotification('🗑️ تم مسح سجل الملفات المستوردة');
@@ -2510,10 +2660,22 @@
     // تحديث البيانات
     // ============================================
     function refreshData() {
-        loadData();
-        loadImportedFiles();
-        updateDashboardStats();
-        showNotification('🔄 تم تحديث البيانات');
+        const current = dbGetStudents();
+        if (current.length > 0) {
+            // عرض ما في الذاكرة مباشرة
+            populateFilterDropdowns(current);
+            applyFilters(current);
+            updateStats(current);
+            loadImportedFiles();
+            updateDashboardStats();
+            showNotification('🔄 تم تحديث العرض من البيانات الحالية');
+        } else {
+            // لا يوجد شيء في الذاكرة — جلب من الملف
+            loadData();
+            loadImportedFiles();
+            updateDashboardStats();
+            showNotification('🔄 تم تحديث البيانات من الملف');
+        }
     }
 
     // ============================================
@@ -2521,9 +2683,12 @@
     // ============================================
     function clearAllData() {
         if(confirm("⚠️ هل أنت متأكد من مسح جميع البيانات؟ لا يمكن التراجع عن هذا الإجراء.")) {
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(IMPORTED_FILES_KEY);
-            loadData();
+            dbSetStudents([]);
+            dbSetImportedFiles([]);
+            exportStudentsFile([]);
+            populateFilterDropdowns([]);
+            applyFilters([]);
+            updateStats([]);
             loadImportedFiles();
             updateDashboardStats();
             showNotification('🗑️ تم مسح جميع البيانات');
@@ -2712,20 +2877,26 @@
     function getFilteredDataForExport() {
         const rows = document.querySelectorAll('#students-table-body tr');
         if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1)) {
-            return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            return dbGetStudents();
         }
-        // استخدم كامل بيانات storage مع تطبيق فلاتر الجدول
-        const allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        const nameQ    = document.getElementById('filter-name')    ? document.getElementById('filter-name').value.trim().toLowerCase()    : '';
-        const subjectQ = document.getElementById('filter-subject') ? document.getElementById('filter-subject').value : '';
-        const dateQ    = document.getElementById('filter-date')    ? document.getElementById('filter-date').value    : '';
-        const groupQ   = document.getElementById('filter-group')   ? document.getElementById('filter-group').value  : '';
+        const allData  = dbGetStudents();
+        const q        = document.getElementById('filter-name')        ? document.getElementById('filter-name').value.trim().toLowerCase()        : '';
+        const mode     = document.getElementById('filter-search-mode') ? document.getElementById('filter-search-mode').value                       : 'all';
+        const subjectQ = document.getElementById('filter-subject')     ? document.getElementById('filter-subject').value                           : '';
+        const dateQ    = document.getElementById('filter-date')        ? document.getElementById('filter-date').value                              : '';
+        const groupQ   = document.getElementById('filter-group')       ? document.getElementById('filter-group').value                             : '';
         return allData.filter(s => {
-            const matchName    = !nameQ    || s.name.toLowerCase().includes(nameQ) || s.code.includes(nameQ);
+            let matchSearch = true;
+            if (q) {
+                if      (mode === 'name')    matchSearch = s.name.toLowerCase().includes(q);
+                else if (mode === 'code')    matchSearch = s.code.includes(q);
+                else if (mode === 'subject') matchSearch = (s.subject || '').toLowerCase().includes(q);
+                else                        matchSearch = s.name.toLowerCase().includes(q) || s.code.includes(q) || (s.subject || '').toLowerCase().includes(q);
+            }
             const matchSubject = !subjectQ || s.subject === subjectQ;
             const matchDate    = !dateQ    || s.examDate === dateQ;
             const matchGroup   = !groupQ   || s.group === groupQ;
-            return matchName && matchSubject && matchDate && matchGroup;
+            return matchSearch && matchSubject && matchDate && matchGroup;
         });
     }
 
@@ -2782,7 +2953,7 @@
             enableQuery: document.getElementById('enable-student-query').checked,
         };
         exportSettingsFile();
-        showNotification('✅ تم حفظ الإعدادات بنجاح - احتفظ بالملف بجانب البرنامج');
+        showNotification('✅ تم تنزيل settings.json — ارفعه على GitHub ليُطبَّق');
     }
 
     // ============================================
@@ -2796,14 +2967,13 @@
     // ============================================
     // إعدادات الاستعلام لكل مادة
     // ============================================
-    const SUBJECT_SETTINGS_KEY = 'subject_query_settings_v1';
 
     function getSubjectSettings() {
         return settingsData.subjectSettings || {};
     }
 
     function getAllSubjects() {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        const data = dbGetStudents();
         return [...new Set(data.map(d => d.subject).filter(s => s && s !== '-'))].sort();
     }
 
@@ -2955,7 +3125,7 @@
         settingsData.subjectSettings = settings;
         exportSettingsFile();
         renderSubjectsTable();
-        showNotification('✅ تم حفظ إعدادات المواد بنجاح - احتفظ بالملف بجانب البرنامج');
+        showNotification('✅ تم تنزيل settings.json بإعدادات المواد — ارفعه على GitHub ليُطبَّق');
     }
 
     function reloadSubjectsTable() {
@@ -2997,7 +3167,7 @@
     // ============================================
     function exportToJSON() {
         try {
-            const allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            const allData = dbGetStudents();
             
             const exportData = {
                 exportDate: new Date().toISOString(),
@@ -3024,6 +3194,26 @@
     }
 
     // ============================================
+    // تصدير بيانات الطلاب إلى students_data.json
+    // يُستدعى تلقائياً عند كل تعديل على البيانات
+    // ============================================
+    function exportStudentsFile(data) {
+        try {
+            const content = JSON.stringify({ students: data }, null, 2);
+            const blob = new Blob([content], { type: 'application/json;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'students_data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            console.log('💾 students_data.json exported:', data.length, 'students');
+        } catch (err) {
+            console.error('Export students file error:', err);
+        }
+    }
+
+    // ============================================
     // استيراد البيانات من ملف JSON
     // ============================================
     function importFromJSON() {
@@ -3044,8 +3234,8 @@
                         throw new Error('صيغة الملف غير صحيحة. يجب أن يحتوي على حقل data.students');
                     }
                     
-                    // حفظ البيانات في localStorage
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData.data.students));
+                    // حفظ البيانات في الذاكرة
+                    dbSetStudents(importedData.data.students);
                     
                     if (importedData.data.adminCredentials && Object.keys(importedData.data.adminCredentials).length > 0) {
                         adminCredentials = importedData.data.adminCredentials;
@@ -3057,8 +3247,10 @@
                     }
                     
                     if (importedData.data.importedFiles && Array.isArray(importedData.data.importedFiles)) {
-                        localStorage.setItem(IMPORTED_FILES_KEY, JSON.stringify(importedData.data.importedFiles));
+                        dbSetImportedFiles(importedData.data.importedFiles);
                     }
+                    // تنزيل students_data.json المحدَّث
+                    exportStudentsFile(importedData.data.students);
                     
                     // إعادة تحميل البيانات
                     loadData();
