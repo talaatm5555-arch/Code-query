@@ -1068,6 +1068,7 @@
                 <button class="tab-btn active" onclick="openTab('dashboard-tab', this)">📊 لوحة المعلومات</button>
                 <button class="tab-btn" onclick="openTab('import-tab', this)">📥 استيراد البيانات</button>
                 <button class="tab-btn" onclick="openTab('students-tab', this)">👥 سجلات الطلاب</button>
+                <button class="tab-btn" onclick="openTab('committees-tab', this)">🏛️ إعداد اللجان</button>
                 <button class="tab-btn" onclick="openTab('settings-tab', this)">⚙️ الإعدادات</button>
             </div>
         </div>
@@ -1211,9 +1212,22 @@
                         <option value="">-- كل المجموعات --</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label for="filter-committee">🏛️ اللجنة</label>
+                    <select id="filter-committee" onchange="applyFilters()">
+                        <option value="">-- كل اللجان --</option>
+                    </select>
+                </div>
                 <div class="filter-group" style="flex: 0;">
                     <label>&nbsp;</label>
                     <button class="btn btn-warning" onclick="resetFilters()" style="padding: 9px 18px; font-size: 13px;">↺ إعادة ضبط</button>
+                </div>
+                <div class="filter-group" style="flex: 0;">
+                    <label>&nbsp;</label>
+                    <button id="toggle-committee-col-btn" class="btn" onclick="toggleCommitteeColumn()"
+                        style="padding: 9px 14px; font-size: 13px; background:#6c3483; white-space:nowrap;">
+                        🏛️ إخفاء اللجنة
+                    </button>
                 </div>
             </div>
 
@@ -1227,8 +1241,8 @@
                             <th>الكود</th>
                             <th>الاسم</th>
                             <th>المجموعة</th>
+                            <th id="th-committee">اللجنة</th>
                             <th>المادة</th>
-                            <th>تاريخ الاختبار</th>
                             <th>مفتاح الامتحان</th>
                             <th>كلمة المرور</th>
                             <th>المدرسة</th>
@@ -1237,6 +1251,125 @@
                     </thead>
                     <tbody id="students-table-body">
                     </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- تبويب إعداد اللجان -->
+        <div id="committees-tab" class="tab-content">
+            <h3 style="margin-bottom: 20px; color: var(--primary-color);">🏛️ إعداد اللجان وتوزيع الطلاب</h3>
+
+            <div class="time-range-card">
+                <h4>⚙️ إعدادات اللجان</h4>
+                <p class="subtitle">حدد عدد الطلاب في كل لجنة — يبدأ التوزيع من المجموعة الأولى ويملأ اللجنة ثم ينتقل للتالية</p>
+
+                <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:flex-end; margin-bottom:15px;">
+                    <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                        <label>عدد الطلاب في كل لجنة</label>
+                        <input type="number" id="committees-per" min="1" max="200" value="20"
+                            style="padding:10px; border:2px solid #ddd; border-radius:8px; font-size:15px; width:100%;"
+                            oninput="previewCommitteeCount()">
+                    </div>
+                    <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+                        <label>رقم أول لجنة</label>
+                        <input type="number" id="committees-start" min="1" value="1"
+                            style="padding:10px; border:2px solid #ddd; border-radius:8px; font-size:15px; width:100%;"
+                            oninput="previewCommitteeCount()">
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-success" onclick="autoAssignCommittees()">⚡ توزيع تلقائي</button>
+                        <button class="btn btn-warning" onclick="clearAllCommittees()">🗑️ مسح التوزيع</button>
+                        <button class="btn" onclick="saveCommittees()">💾 حفظ التوزيع</button>
+                        <button class="btn btn-warning" onclick="importCommitteesFile()">📂 تحميل committees.json</button>
+                    </div>
+                </div>
+
+                <!-- معاينة فورية -->
+                <div id="committee-preview-box" style="background:#e8f4f8; border-radius:8px; padding:10px 15px; font-size:13px; color:#1a5f7a; margin-bottom:10px;">
+                    💡 <strong>التوزيع التلقائي:</strong> يملأ اللجنة بالعدد المحدد بالتسلسل من المجموعة الأولى إلى الأخيرة.
+                    يمكنك تعديل اللجنة لأي طالب يدوياً من الجدول أدناه.
+                </div>
+            </div>
+
+            <!-- كارت إسناد التوزيع -->
+            <div class="time-range-card" style="border: 2px solid var(--secondary-color);">
+                <h4>🔗 إسناد التوزيع على المواد</h4>
+                <p class="subtitle">بعد حفظ توزيع اللجان، يمكنك إسناده على جميع المواد الحالية، أو تفعيل التطبيق التلقائي على أي مادة تُستورد لاحقاً</p>
+
+                <!-- الخيار 1: تطبيق فوري على المواد الحالية -->
+                <div style="background:#f0f7f7; border-radius:10px; padding:15px; margin-bottom:15px;">
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+                        <span style="font-size:22px;">📋</span>
+                        <div>
+                            <strong style="color:var(--primary-color); font-size:14px;">الخيار 1: تطبيق فوري على كل المواد الحالية</strong>
+                            <p style="font-size:12px; color:#666; margin-top:3px;">يُطبّق التوزيع المحفوظ على جميع الطلاب الموجودين حالياً في قاعدة البيانات بصرف النظر عن مادتهم — الربط يتم بالكود التعريفي.</p>
+                        </div>
+                    </div>
+                    <div id="apply-all-summary" style="font-size:12px; color:#555; background:#fff; padding:8px 12px; border-radius:7px; margin-bottom:10px; border:1px solid #ddd;">
+                        جاري الحساب...
+                    </div>
+                    <button class="btn btn-success" onclick="applyCommitteesToAllSubjects()" style="width:100%;">
+                        ✅ تطبيق التوزيع الآن على كل المواد الحالية
+                    </button>
+                </div>
+
+                <!-- الخيار 2: تطبيق تلقائي على الاستيراد القادم -->
+                <div style="background:#f0f7f7; border-radius:10px; padding:15px;">
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+                        <span style="font-size:22px;">⚡</span>
+                        <div>
+                            <strong style="color:var(--primary-color); font-size:14px;">الخيار 2: تطبيق تلقائي على أي مادة تُستورد لاحقاً</strong>
+                            <p style="font-size:12px; color:#666; margin-top:3px;">عند تفعيل هذا الخيار، أي ملف يُستورد جديد سيحصل طلابه على رقم اللجنة المحفوظ لكودهم تلقائياً.</p>
+                        </div>
+                    </div>
+                    <div class="toggle-row" style="margin-bottom:10px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-apply-committees" onchange="saveAutoApplySetting()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label" id="auto-apply-label">التطبيق التلقائي: <strong style="color:var(--danger);">مُعطَّل</strong></span>
+                    </div>
+                    <div id="auto-apply-info" style="font-size:12px; color:#856404; background:#fff3cd; padding:8px 12px; border-radius:7px; border:1px solid #ffc107; display:none;">
+                        ⚡ التطبيق التلقائي مفعّل — أي ملف يُستورد لاحقاً سيرث توزيع اللجان الحالي تلقائياً.
+                    </div>
+                </div>
+            </div>
+
+            <!-- فلتر بحث في اللجان -->
+            <div class="filter-bar" style="margin-bottom:12px;">
+                <div class="filter-group" style="flex:2; min-width:200px;">
+                    <label>🔍 بحث بالاسم أو الكود</label>
+                    <input type="text" id="committee-search" placeholder="اكتب الاسم أو الكود..." oninput="renderCommitteesTable()">
+                </div>
+                <div class="filter-group">
+                    <label>🏛️ فرز حسب اللجنة</label>
+                    <select id="committee-filter-num" onchange="renderCommitteesTable()">
+                        <option value="">-- كل اللجان --</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>👥 المجموعة</label>
+                    <select id="committee-filter-group" onchange="renderCommitteesTable()">
+                        <option value="">-- كل المجموعات --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="filter-results-info" id="committees-results-info">جاري التحميل...</div>
+
+            <div class="table-container">
+                <table id="committees-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الكود</th>
+                            <th>الاسم</th>
+                            <th>المجموعة</th>
+                            <th>المادة</th>
+                            <th style="min-width:120px;">رقم اللجنة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="committees-table-body"></tbody>
                 </table>
             </div>
         </div>
@@ -1570,6 +1703,12 @@
         } else if (tabId === 'settings-tab') {
             refreshStoredHashDisplay();
             renderSubjectsTable();
+        } else if (tabId === 'committees-tab') {
+            populateCommitteeFilterDropdown();
+            renderCommitteesTable();
+            updateApplyAllSummary();
+            updateAutoApplyUI();
+            previewCommitteeCount();
         }
     }
 
@@ -1592,6 +1731,7 @@
         console.log('🚀 System initializing...');
         await loadSettingsFromFile();   // تحميل الإعدادات من settings.json أولاً
         await initAdminCredentials();
+        await loadCommitteesFromFile(); // تحميل توزيع اللجان
         loadData();
         loadSettings();
         loadImportedFiles();
@@ -1701,6 +1841,7 @@
         const subjectQ = (document.getElementById('filter-subject')     ? document.getElementById('filter-subject').value                           : '');
         const dateQ    = (document.getElementById('filter-date')        ? document.getElementById('filter-date').value                              : '');
         const groupQ   = (document.getElementById('filter-group')       ? document.getElementById('filter-group').value                             : '');
+        const committeeQ = (document.getElementById('filter-committee') ? document.getElementById('filter-committee').value                         : '');
 
         const filtered = allData.filter(s => {
             let matchSearch = true;
@@ -1710,17 +1851,20 @@
                 else if (mode === 'subject') matchSearch = (s.subject || '').toLowerCase().includes(q);
                 else /* all */              matchSearch = s.name.toLowerCase().includes(q) || s.code.includes(q) || (s.subject || '').toLowerCase().includes(q);
             }
-            const matchSubject = !subjectQ || s.subject === subjectQ;
-            const matchDate    = !dateQ    || s.examDate === dateQ;
-            const matchGroup   = !groupQ   || s.group === groupQ;
-            return matchSearch && matchSubject && matchDate && matchGroup;
+            const matchSubject   = !subjectQ   || s.subject === subjectQ;
+            const matchDate      = !dateQ      || s.examDate === dateQ;
+            const matchGroup     = !groupQ     || s.group === groupQ;
+            const matchCommittee = !committeeQ || String(getStudentCommittee(s.code)) === committeeQ;
+            return matchSearch && matchSubject && matchDate && matchGroup && matchCommittee;
         });
 
         renderTable(filtered);
+        // تطبيق حالة ظهور عمود اللجنة
+        applyCommitteeColVisibility();
 
         const infoEl = document.getElementById('filter-results-info');
         if (infoEl) {
-            const active = [q, subjectQ, dateQ, groupQ].filter(Boolean).length;
+            const active = [q, subjectQ, dateQ, groupQ, committeeQ].filter(Boolean).length;
             infoEl.textContent = active > 0
                 ? `🔍 نتائج الفلتر: ${filtered.length} من أصل ${allData.length} طالب`
                 : `📋 إجمالي السجلات: ${allData.length} طالب`;
@@ -1728,7 +1872,7 @@
     }
 
     function resetFilters() {
-        ['filter-name','filter-subject','filter-date','filter-group'].forEach(id => {
+        ['filter-name','filter-subject','filter-date','filter-group','filter-committee'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
@@ -1753,13 +1897,14 @@
 
         data.forEach((row, index) => {
             const tr = document.createElement('tr');
+            const committeeNum = getStudentCommittee(row.code);
             tr.innerHTML = `
                 <td>${index + 1}</td>
                 <td><strong>${row.code}</strong></td>
                 <td>${row.name}</td>
                 <td>${row.group || '-'}</td>
+                <td>${committeeNum ? `<span style="background:#1a5f7a;color:#fff;padding:2px 10px;border-radius:10px;font-weight:bold;">${committeeNum}</span>` : '<span style="color:#aaa;">—</span>'}</td>
                 <td>${row.subject || '-'}</td>
-                <td>${formatDate(row.examDate) || '-'}</td>
                 <td style="direction: ltr; font-family: monospace;">${row.examKey || '-'}</td>
                 <td>${row.password || '-'}</td>
                 <td>${row.school || '-'}</td>
@@ -1857,10 +2002,12 @@
             resultCard.classList.add('active');
 
             const firstStudent = allowedStudents[0];
+            const committeeNum = getStudentCommittee(firstStudent.code);
             let html = `
                 <div class="data-row"><span class="data-label">🆔 الكود التعريفي:</span> <span class="data-value">${firstStudent.code}</span></div>
                 <div class="data-row"><span class="data-label">👤 اسم الطالب:</span> <span class="data-value">${firstStudent.name}</span></div>
                 <div class="data-row"><span class="data-label">🏫 المجموعة:</span> <span class="data-value">${firstStudent.group}</span></div>
+                ${committeeNum ? `<div class="data-row"><span class="data-label">🏛️ رقم اللجنة:</span> <span class="data-value" style="font-size:18px; font-weight:bold; color:var(--primary-color);">${committeeNum}</span></div>` : ''}
                 <div class="data-row"><span class="data-label">🏛️ المدرسة:</span> <span class="data-value">${firstStudent.school}</span></div>
                 <div class="data-row"><span class="data-label">🏢 مركز الامتحان:</span> <span class="data-value">${firstStudent.examCenter || firstStudent.school || '-'}</span></div>
             `;
@@ -1880,8 +2027,6 @@
 
                 html += `
                     <div class="data-row"><span class="data-label">📚 المادة:</span> <span class="data-value">${student.subject || 'عام'}</span></div>
-                    <div class="data-row"><span class="data-label">📅 تاريخ الاختبار:</span> <span class="data-value">${formatDate(student.examDate) || '-'}</span></div>
-                    <div class="data-row"><span class="data-label">📝 نموذج الامتحان:</span> <span class="data-value">${student.form || '-'}</span></div>
                 `;
 
                 if (effectiveShowKeys) {
@@ -2527,8 +2672,14 @@
             exportStudentsFile(currentData);
             console.log('✅ Import complete. Total students now:', currentData.length);
 
-            statusDiv.innerHTML += `<br><strong style="color: var(--success);">✅ تم الاستيراد بنجاح | إجمالي الطلاب المضافين: ${totalImported}</strong><br><span style="color:#856404;">⬆️ تم تنزيل students_data.json — ارفعه على GitHub لتحديث البيانات</span>`;
-            showNotification(`✅ تم استيراد ${selectedFiles.length} ملف | ${totalImported} طالب — ارفع students_data.json على GitHub`);
+            // تطبيق اللجان تلقائياً إن كان الخيار مفعّلاً
+            const autoApplied = autoApplyCommitteesIfEnabled(currentData);
+            const autoMsg = (_autoApplyCommittees && autoApplied > 0)
+                ? `<br><span style="color:#155724; background:#d4edda; padding:4px 10px; border-radius:5px; display:inline-block; margin-top:5px;">🏛️ تم تطبيق اللجان تلقائياً على ${autoApplied} طالب</span>`
+                : (_autoApplyCommittees ? '<br><span style="color:#856404;">⚠️ التطبيق التلقائي مفعّل ولكن لم يُعثر على أكواد مطابقة في توزيع اللجان</span>' : '');
+
+            statusDiv.innerHTML += `<br><strong style="color: var(--success);">✅ تم الاستيراد بنجاح | إجمالي الطلاب المضافين: ${totalImported}</strong><br><span style="color:#856404;">⬆️ تم تنزيل students_data.json — ارفعه على GitHub لتحديث البيانات</span>${autoMsg}`;
+            showNotification(`✅ تم استيراد ${selectedFiles.length} ملف | ${totalImported} طالب${_autoApplyCommittees ? ' | 🏛️ اللجان طُبّقت تلقائياً' : ''}`);
 
             // عرض البيانات مباشرة من الذاكرة بدون إعادة جلب من الملف
             populateFilterDropdowns(currentData);
@@ -2708,17 +2859,20 @@
         const settings = settingsData.generalSettings || {};
         const showKeys = settings.showKeys !== false;
 
-        const rows = data.map((s, i) => `
+        const rows = data.map((s, i) => {
+            const committeeNum = getStudentCommittee(s.code);
+            return `
             <tr>
                 <td>${i + 1}</td>
                 <td><strong>${s.code}</strong></td>
                 <td>${s.name}</td>
                 <td>${s.group || '-'}</td>
+                <td>${committeeNum || '-'}</td>
                 <td>${s.subject || '-'}</td>
-                <td>${formatDate(s.examDate) || '-'}</td>
                 ${showKeys ? `<td style="direction:ltr;font-family:monospace;">${s.examKey || '-'}</td><td>${s.password || '-'}</td>` : ''}
                 <td>${s.school || '-'}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         const keyCols = showKeys ? '<th>مفتاح الامتحان</th><th>كلمة المرور</th>' : '';
 
@@ -2739,7 +2893,7 @@
             <div class="meta">إجمالي السجلات: ${data.length} طالب | تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}</div>
             <button onclick="window.print()" style="margin-bottom:15px;padding:8px 20px;background:#159895;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ طباعة / حفظ PDF</button>
             <table>
-                <thead><tr><th>#</th><th>الكود</th><th>الاسم</th><th>المجموعة</th><th>المادة</th><th>تاريخ الاختبار</th>${keyCols}<th>المدرسة</th></tr></thead>
+                <thead><tr><th>#</th><th>الكود</th><th>الاسم</th><th>المجموعة</th><th>اللجنة</th><th>المادة</th>${keyCols}<th>المدرسة</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
         </body></html>`);
@@ -2757,7 +2911,7 @@
         const showKeys = settings.showKeys !== false;
 
         const BOM = '\uFEFF'; // لدعم العربية في Excel
-        const headers = ['#','الكود','الاسم','المجموعة','المادة الدراسية','تاريخ الاختبار',
+        const headers = ['#','الكود','الاسم','المجموعة','اللجنة','المادة الدراسية',
             ...(showKeys ? ['مفتاح الامتحان','كلمة المرور'] : []),
             'المدرسة','مركز الامتحان','الملف المصدر'];
 
@@ -2766,8 +2920,8 @@
             s.code,
             `"${s.name}"`,
             s.group || '-',
+            getStudentCommittee(s.code) || '-',
             s.subject || '-',
-            formatDate(s.examDate) || '-',
             ...(showKeys ? [s.examKey || '-', s.password || '-'] : []),
             `"${s.school || '-'}"`,
             `"${s.examCenter || '-'}"`,
@@ -2792,29 +2946,48 @@
         const data = getFilteredDataForExport();
         if (data.length === 0) { showNotification('⚠️ لا توجد بيانات للطباعة', 'warning'); return; }
 
+        // نافذة اختيار التخطيط أولاً
+        const layoutChoice = prompt(
+            '🏷️ اختر تخطيط الملصقات في الصفحة:\n\n' +
+            '1 → 3 أعمدة × 4 صفوف (12 ملصق/صفحة)\n' +
+            '2 → 4 أعمدة × 4 صفوف (16 ملصق/صفحة)\n' +
+            '3 → 2 أعمدة × 3 صفوف (6 ملصقات/صفحة)\n' +
+            '4 → 2 أعمدة × 5 صفوف (10 ملصقات/صفحة)\n\n' +
+            'اكتب رقم الخيار (أو اضغط إلغاء للإلغاء):',
+            '1'
+        );
+        if (layoutChoice === null) return;
+
+        let cols = 3;
+        if      (layoutChoice === '2') cols = 4;
+        else if (layoutChoice === '3') cols = 2;
+        else if (layoutChoice === '4') cols = 2;
+
         showNotification('🏷️ جاري تحضير الملصقات...');
 
         const settings = settingsData.generalSettings || {};
         const showKeys = settings.showKeys !== false;
 
-        const labels = data.map(s => `
+        const labels = data.map(s => {
+            const committeeNum = getStudentCommittee(s.code);
+            return `
             <div class="label-card">
                 <div class="label-header">
                     <span class="label-school">${s.school && s.school !== '-' ? s.school : 'مدرسة محلة قيس الثانوية'}</span>
+                    ${committeeNum ? `<span class="label-committee">لجنة رقم: ${committeeNum}</span>` : ''}
                 </div>
                 <div class="label-body">
                     <div class="label-name">${s.name}</div>
                     <div class="label-row"><span class="lbl">الكود:</span><span class="val">${s.code}</span></div>
                     <div class="label-row"><span class="lbl">المجموعة:</span><span class="val">${s.group || '-'}</span></div>
                     <div class="label-row"><span class="lbl">المادة:</span><span class="val">${s.subject || '-'}</span></div>
-                    <div class="label-row"><span class="lbl">تاريخ الاختبار:</span><span class="val">${formatDate(s.examDate) || '-'}</span></div>
-                    <div class="label-row"><span class="lbl">النموذج:</span><span class="val">${s.form || '-'}</span></div>
                     ${showKeys ? `
                     <div class="label-row key-row"><span class="lbl">مفتاح الامتحان:</span><span class="val key-val">${s.examKey || '-'}</span></div>
                     <div class="label-row key-row"><span class="lbl">كلمة المرور:</span><span class="val key-val">${s.password || '-'}</span></div>
                     ` : ''}
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
 
         const win = window.open('', '_blank', 'width=950,height=750');
         win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl">
@@ -2825,46 +2998,58 @@
             .print-controls { text-align: center; margin-bottom: 20px; }
             .print-controls button { padding: 10px 25px; background: #1a5f7a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 5px; }
             .print-controls button:last-child { background: #e74c3c; }
+            .layout-controls { margin: 10px 0; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:center; }
+            .layout-controls label { font-weight:bold; font-size:13px; color:#1a5f7a; }
+            .layout-controls select { padding:6px 12px; border:2px solid #1a5f7a; border-radius:6px; font-size:13px; cursor:pointer; }
             h2 { text-align: center; color: #1a5f7a; margin-bottom: 5px; }
-            .meta { text-align: center; font-size: 12px; color: #888; margin-bottom: 20px; }
-            .labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            .meta { text-align: center; font-size: 12px; color: #888; margin-bottom: 10px; }
+            .labels-grid { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 10px; }
             .label-card {
                 background: white; border: 2px solid #1a5f7a; border-radius: 10px;
                 overflow: hidden; page-break-inside: avoid; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             }
             .label-header {
-                background: #1a5f7a; color: white; padding: 7px 10px; text-align: center;
+                background: #1a5f7a; color: white; padding: 6px 10px; text-align: center;
+                display:flex; justify-content:space-between; align-items:center;
             }
-            .label-school { font-size: 11px; font-weight: bold; }
-            .label-body { padding: 10px 12px; }
+            .label-school { font-size: 10px; font-weight: bold; }
+            .label-committee { font-size: 13px; font-weight: bold; background:#f39c12; color:#fff; padding:2px 8px; border-radius:8px; }
+            .label-body { padding: 8px 10px; }
             .label-name {
-                font-size: 14px; font-weight: bold; color: #1a5f7a;
-                text-align: center; margin-bottom: 8px; padding-bottom: 7px;
+                font-size: 13px; font-weight: bold; color: #1a5f7a;
+                text-align: center; margin-bottom: 6px; padding-bottom: 6px;
                 border-bottom: 1px dashed #ccc;
             }
             .label-row {
                 display: flex; justify-content: space-between; align-items: center;
-                padding: 3px 0; font-size: 11px; border-bottom: 1px dotted #eee;
+                padding: 2px 0; font-size: 10px; border-bottom: 1px dotted #eee;
             }
             .label-row:last-child { border-bottom: none; }
-            .lbl { color: #555; font-weight: bold; min-width: 90px; }
+            .lbl { color: #555; font-weight: bold; min-width: 80px; }
             .val { color: #2c3e50; font-weight: 600; text-align: left; direction: ltr; }
-            .key-row { background: #fff8e1; border-radius: 4px; padding: 4px 4px; margin-top: 2px; }
-            .key-val { font-family: monospace; color: #6c3483; font-size: 11px; }
+            .key-row { background: #fff8e1; border-radius: 4px; padding: 3px 4px; margin-top: 2px; }
+            .key-val { font-family: monospace; color: #6c3483; font-size: 10px; }
             @media print {
                 body { background: white; padding: 5px; }
                 .print-controls { display: none; }
-                .labels-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+                .labels-grid { grid-template-columns: repeat(${cols}, 1fr); gap: 7px; }
                 .label-card { box-shadow: none; border: 1.5px solid #1a5f7a; }
-            }
-            @media print and (max-width: 15cm) {
-                .labels-grid { grid-template-columns: repeat(2, 1fr); }
             }
         </style></head>
         <body>
             <div class="print-controls">
                 <h2>🏷️ ملصقات الطلاب - مدرسة محلة قيس الثانوية</h2>
                 <div class="meta">إجمالي الملصقات: ${data.length} طالب | تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}</div>
+                <div class="layout-controls">
+                    <label>تخطيط الطباعة:</label>
+                    <select onchange="document.querySelector('.labels-grid').style.gridTemplateColumns='repeat('+this.value+', 1fr)'">
+                        <option value="${cols}" selected>${cols} أعمدة (محدد)</option>
+                        <option value="2">2 أعمدة</option>
+                        <option value="3">3 أعمدة</option>
+                        <option value="4">4 أعمدة</option>
+                        <option value="5">5 أعمدة</option>
+                    </select>
+                </div>
                 <button onclick="window.print()">🖨️ طباعة الملصقات</button>
                 <button onclick="window.close()">✖ إغلاق</button>
             </div>
@@ -2873,18 +3058,157 @@
         win.document.close();
     }
 
+    function importCommitteesFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data && data.committees) {
+                        _committeesDB = data.committees;
+                        // استعادة إعداد التطبيق التلقائي إن كان محفوظاً في الملف
+                        if (data.autoApply !== undefined) {
+                            _autoApplyCommittees = !!data.autoApply;
+                            const cb = document.getElementById('auto-apply-committees');
+                            if (cb) cb.checked = _autoApplyCommittees;
+                            updateAutoApplyUI();
+                        }
+                        populateCommitteeFilterDropdown();
+                        renderCommitteesTable();
+                        updateApplyAllSummary();
+                        loadData();
+                        showNotification(`✅ تم تحميل توزيع اللجان بنجاح`);
+                    } else {
+                        showNotification('❌ صيغة الملف غير صحيحة', 'error');
+                    }
+                } catch(err) {
+                    showNotification('❌ خطأ في قراءة الملف: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    // ============================================
+    // الخيار 1: تطبيق التوزيع فوراً على كل المواد
+    // ============================================
+    function applyCommitteesToAllSubjects() {
+        const data = dbGetStudents();
+        if (data.length === 0) {
+            showNotification('⚠️ لا يوجد طلاب في قاعدة البيانات', 'warning');
+            return;
+        }
+        const assignedCodes = Object.keys(_committeesDB);
+        if (assignedCodes.length === 0) {
+            showNotification('⚠️ لا يوجد توزيع محفوظ — قم بالتوزيع أولاً', 'warning');
+            return;
+        }
+
+        // حساب عدد الطلاب الذين سيستفيدون
+        const matched = data.filter(s => _committeesDB[s.code]);
+        if (!confirm(`✅ سيُطبَّق التوزيع على ${matched.length} طالب من أصل ${data.length} طالب في قاعدة البيانات.\nالطلاب الذين لا يوجد لهم لجنة محددة (${data.length - matched.length}) لن يتأثروا.\nهل تريد المتابعة؟`)) return;
+
+        // التوزيع مرتبط بالكود — لا نحتاج لتعديل بيانات الطلاب نفسها
+        // _committeesDB يحتوي بالفعل الأكواد → سيظهر التوزيع في كل المواد تلقائياً
+        // نحفظ الملف فقط لتأكيد التطبيق
+        exportCommitteesFile();
+        populateCommitteeFilterDropdown();
+        loadData();
+        updateApplyAllSummary();
+        showNotification(`✅ تم إسناد التوزيع على ${matched.length} طالب في جميع المواد — تم تنزيل committees.json`);
+    }
+
+    // ============================================
+    // الخيار 2: التطبيق التلقائي عند الاستيراد
+    // ============================================
+    let _autoApplyCommittees = false;
+
+    function saveAutoApplySetting() {
+        const cb = document.getElementById('auto-apply-committees');
+        _autoApplyCommittees = cb ? cb.checked : false;
+        updateAutoApplyUI();
+        showNotification(_autoApplyCommittees
+            ? '⚡ التطبيق التلقائي مفعّل — ستُطبَّق اللجان على كل ملف يُستورد'
+            : '🔕 تم تعطيل التطبيق التلقائي');
+    }
+
+    function updateAutoApplyUI() {
+        const label   = document.getElementById('auto-apply-label');
+        const infoBox = document.getElementById('auto-apply-info');
+        const cb      = document.getElementById('auto-apply-committees');
+        if (!label) return;
+        if (_autoApplyCommittees) {
+            label.innerHTML = 'التطبيق التلقائي: <strong style="color:var(--success);">مفعّل ✅</strong>';
+            if (infoBox) infoBox.style.display = 'block';
+            if (cb) cb.checked = true;
+        } else {
+            label.innerHTML = 'التطبيق التلقائي: <strong style="color:var(--danger);">مُعطَّل</strong>';
+            if (infoBox) infoBox.style.display = 'none';
+            if (cb) cb.checked = false;
+        }
+    }
+
+    // يُستدعى من importFilesDirect بعد اكتمال الاستيراد
+    function autoApplyCommitteesIfEnabled(newStudents) {
+        if (!_autoApplyCommittees) return 0;
+        let count = 0;
+        newStudents.forEach(s => {
+            if (_committeesDB[s.code]) count++; // مسجّل بالفعل — لا داعي للتعديل
+            // الكود موجود في _committeesDB → يُعرض تلقائياً في كل مكان
+        });
+        return count;
+    }
+
+    function updateApplyAllSummary() {
+        const el = document.getElementById('apply-all-summary');
+        if (!el) return;
+        const data = dbGetStudents();
+        const total    = data.length;
+        const assigned = data.filter(s => _committeesDB[s.code]).length;
+        const subjects = [...new Set(data.map(d => d.subject).filter(s => s && s !== '-'))];
+        el.innerHTML = `
+            📊 إجمالي الطلاب: <strong>${total}</strong> |
+            لديهم لجنة: <strong style="color:var(--success);">${assigned}</strong> |
+            بدون لجنة: <strong style="color:var(--danger);">${total - assigned}</strong> |
+            المواد المتأثرة: <strong>${subjects.length}</strong> مادة
+            ${subjects.length > 0 ? `<br><span style="font-size:11px; color:#888;">(${subjects.join(' — ')})</span>` : ''}
+        `;
+    }
+
+    function exportCommitteesFile() {
+        const payload = {
+            committees: _committeesDB,
+            autoApply:  _autoApplyCommittees,
+            savedAt:    new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'committees.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     // إرجاع البيانات المرئية حالياً في الجدول
     function getFilteredDataForExport() {
         const rows = document.querySelectorAll('#students-table-body tr');
         if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1)) {
             return dbGetStudents();
         }
-        const allData  = dbGetStudents();
-        const q        = document.getElementById('filter-name')        ? document.getElementById('filter-name').value.trim().toLowerCase()        : '';
-        const mode     = document.getElementById('filter-search-mode') ? document.getElementById('filter-search-mode').value                       : 'all';
-        const subjectQ = document.getElementById('filter-subject')     ? document.getElementById('filter-subject').value                           : '';
-        const dateQ    = document.getElementById('filter-date')        ? document.getElementById('filter-date').value                              : '';
-        const groupQ   = document.getElementById('filter-group')       ? document.getElementById('filter-group').value                             : '';
+        const allData      = dbGetStudents();
+        const q            = document.getElementById('filter-name')        ? document.getElementById('filter-name').value.trim().toLowerCase()        : '';
+        const mode         = document.getElementById('filter-search-mode') ? document.getElementById('filter-search-mode').value                       : 'all';
+        const subjectQ     = document.getElementById('filter-subject')     ? document.getElementById('filter-subject').value                           : '';
+        const dateQ        = document.getElementById('filter-date')        ? document.getElementById('filter-date').value                              : '';
+        const groupQ       = document.getElementById('filter-group')       ? document.getElementById('filter-group').value                             : '';
+        const committeeQ   = document.getElementById('filter-committee')   ? document.getElementById('filter-committee').value                         : '';
         return allData.filter(s => {
             let matchSearch = true;
             if (q) {
@@ -2893,10 +3217,11 @@
                 else if (mode === 'subject') matchSearch = (s.subject || '').toLowerCase().includes(q);
                 else                        matchSearch = s.name.toLowerCase().includes(q) || s.code.includes(q) || (s.subject || '').toLowerCase().includes(q);
             }
-            const matchSubject = !subjectQ || s.subject === subjectQ;
-            const matchDate    = !dateQ    || s.examDate === dateQ;
-            const matchGroup   = !groupQ   || s.group === groupQ;
-            return matchSearch && matchSubject && matchDate && matchGroup;
+            const matchSubject   = !subjectQ   || s.subject === subjectQ;
+            const matchDate      = !dateQ      || s.examDate === dateQ;
+            const matchGroup     = !groupQ     || s.group === groupQ;
+            const matchCommittee = !committeeQ || String(getStudentCommittee(s.code)) === committeeQ;
+            return matchSearch && matchSubject && matchDate && matchGroup && matchCommittee;
         });
     }
 
@@ -3160,6 +3485,290 @@
             if (now > end)   return `🔒 انتهت فترة الاستعلام عن مادة "${subjectName}" في: ${end.toLocaleString('ar-EG')}`;
         }
         return null;
+    }
+
+    // ============================================
+    // إدارة اللجان
+    // ============================================
+    let _committeesDB = {}; // { studentCode: committeeNumber }
+
+    function getStudentCommittee(code) {
+        return _committeesDB[code] || '';
+    }
+
+    function setStudentCommittee(code, num) {
+        if (num === '' || num === null || num === undefined) {
+            delete _committeesDB[code];
+        } else {
+            _committeesDB[code] = num;
+        }
+    }
+
+    function saveCommittees() {
+        // حفظ التوزيع: اقرأ الحقول من الجدول المعروض أولاً
+        const rows = document.querySelectorAll('#committees-table-body tr');
+        rows.forEach(tr => {
+            const code = tr.dataset.code;
+            const input = tr.querySelector('.committee-input');
+            if (code && input) {
+                setStudentCommittee(code, input.value.trim());
+            }
+        });
+
+        exportCommitteesFile();
+
+        // تحديث عرض سجلات الطلاب والفلاتر
+        loadData();
+        populateCommitteeFilterDropdown();
+        renderCommitteesTable();
+        updateApplyAllSummary();
+        showNotification('✅ تم حفظ توزيع اللجان وتنزيل committees.json — ارفعه على GitHub ليُطبَّق');
+    }
+
+    // ============================================
+    // إظهار / إخفاء عمود اللجنة في سجلات الطلاب
+    // ============================================
+    let _showCommitteeCol = true;
+
+    function toggleCommitteeColumn() {
+        _showCommitteeCol = !_showCommitteeCol;
+        applyCommitteeColVisibility();
+    }
+
+    function applyCommitteeColVisibility() {
+        const th  = document.getElementById('th-committee');
+        const btn = document.getElementById('toggle-committee-col-btn');
+
+        // عمود اللجنة هو العمود رقم 5 (index=4) في الجدول
+        const tds = document.querySelectorAll('#students-table-body tr td:nth-child(5)');
+
+        if (_showCommitteeCol) {
+            if (th)  th.style.display  = '';
+            tds.forEach(td => td.style.display = '');
+            if (btn) { btn.textContent = '🏛️ إخفاء اللجنة';  btn.style.background = '#6c3483'; }
+        } else {
+            if (th)  th.style.display  = 'none';
+            tds.forEach(td => td.style.display = 'none');
+            if (btn) { btn.textContent = '🏛️ إظهار اللجنة'; btn.style.background = '#27ae60'; }
+        }
+    }
+
+    function previewCommitteeCount() {
+        const perCommittee = parseInt(document.getElementById('committees-per').value) || 20;
+        const start        = parseInt(document.getElementById('committees-start').value) || 1;
+        const total        = dbGetStudents().length;
+        const box          = document.getElementById('committee-preview-box');
+        if (!box) return;
+        if (total === 0) {
+            box.innerHTML = '💡 <strong>التوزيع التلقائي:</strong> يملأ اللجنة بالعدد المحدد بالتسلسل من المجموعة الأولى إلى الأخيرة.';
+            return;
+        }
+        const numCommittees = Math.ceil(total / perCommittee);
+        const last = start + numCommittees - 1;
+        box.innerHTML = `
+            📊 <strong>معاينة:</strong>
+            إجمالي الطلاب: <strong>${total}</strong> |
+            ${perCommittee} طالب/لجنة |
+            عدد اللجان المتوقع: <strong>${numCommittees}</strong> لجنة
+            (من لجنة <strong>${start}</strong> إلى لجنة <strong>${last}</strong>)
+            ${total % perCommittee !== 0
+                ? `| آخر لجنة سيكون فيها <strong>${total % perCommittee}</strong> طالب فقط`
+                : '| جميع اللجان متساوية العدد ✅'}
+        `;
+    }
+
+    function autoAssignCommittees() {
+        const perCommittee = parseInt(document.getElementById('committees-per').value) || 20;
+        const start        = parseInt(document.getElementById('committees-start').value) || 1;
+        const data         = dbGetStudents();
+
+        if (data.length === 0) {
+            showNotification('⚠️ لا يوجد طلاب لتوزيعهم', 'warning');
+            return;
+        }
+        if (perCommittee < 1) {
+            showNotification('⚠️ عدد الطلاب في اللجنة يجب أن يكون 1 على الأقل', 'warning');
+            return;
+        }
+
+        // ترتيب المجموعات طبيعياً
+        const groups = [...new Set(data.map(s => s.group || '-'))].sort((a, b) =>
+            a.localeCompare(b, 'ar', { numeric: true })
+        );
+
+        // بناء قائمة الطلاب: مجموعة بمجموعة، داخل كل مجموعة أبجدياً
+        const sorted = [];
+        groups.forEach(grp => {
+            const grpStudents = data
+                .filter(s => (s.group || '-') === grp)
+                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+            sorted.push(...grpStudents);
+        });
+
+        const numCommittees = Math.ceil(sorted.length / perCommittee);
+        const last = start + numCommittees - 1;
+
+        if (!confirm(
+            `⚡ التوزيع التالي سيُطبَّق:\n` +
+            `• ${sorted.length} طالب | ${perCommittee} طالب/لجنة\n` +
+            `• عدد اللجان: ${numCommittees} (من ${start} إلى ${last})\n` +
+            `• الترتيب: ${groups.join(' ← ')}\n` +
+            (sorted.length % perCommittee !== 0
+                ? `• آخر لجنة (${last}): ${sorted.length % perCommittee} طالب\n`
+                : `• جميع اللجان متساوية (${perCommittee} طالب)\n`) +
+            `\nهل تريد المتابعة؟`
+        )) return;
+
+        // التوزيع: الطالب i → لجنة (start + Math.floor(i / perCommittee))
+        sorted.forEach((s, idx) => {
+            setStudentCommittee(s.code, start + Math.floor(idx / perCommittee));
+        });
+
+        // ملخص كل لجنة
+        const summary = {};
+        sorted.forEach((s, idx) => {
+            const c = start + Math.floor(idx / perCommittee);
+            summary[c] = (summary[c] || 0) + 1;
+        });
+        const summaryText = Object.entries(summary)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([c, n]) => `لجنة ${c}: ${n}`)
+            .join(' | ');
+
+        populateCommitteeFilterDropdown();
+        renderCommitteesTable();
+        updateApplyAllSummary();
+        previewCommitteeCount();
+        showNotification(`✅ ${sorted.length} طالب على ${numCommittees} لجنة — ${summaryText} — اضغط "حفظ التوزيع"`);
+    }
+
+    function clearAllCommittees() {
+        if (!confirm('⚠️ هل تريد مسح جميع أرقام اللجان؟')) return;
+        _committeesDB = {};
+        populateCommitteeFilterDropdown();
+        renderCommitteesTable();
+        showNotification('🗑️ تم مسح توزيع اللجان');
+    }
+
+    function populateCommitteeFilterDropdown() {
+        const committees = [...new Set(Object.values(_committeesDB))].sort((a, b) => a - b);
+        const sel = document.getElementById('committee-filter-num');
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">-- كل اللجان --</option>';
+        committees.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = `لجنة رقم ${c}`;
+            if (String(c) === cur) opt.selected = true;
+            sel.appendChild(opt);
+        });
+
+        // also populate main filter-committee in students tab
+        const mainSel = document.getElementById('filter-committee');
+        if (mainSel) {
+            const curMain = mainSel.value;
+            mainSel.innerHTML = '<option value="">-- كل اللجان --</option>';
+            committees.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = `لجنة رقم ${c}`;
+                if (String(c) === curMain) opt.selected = true;
+                mainSel.appendChild(opt);
+            });
+        }
+    }
+
+    function renderCommitteesTable() {
+        const data    = dbGetStudents();
+        const search  = (document.getElementById('committee-search')       || {value:''}).value.trim().toLowerCase();
+        const filterC = (document.getElementById('committee-filter-num')   || {value:''}).value;
+        const filterG = (document.getElementById('committee-filter-group') || {value:''}).value;
+
+        // populate group filter
+        const groupSel = document.getElementById('committee-filter-group');
+        if (groupSel) {
+            const groups = [...new Set(data.map(d => d.group).filter(g => g && g !== '-'))].sort();
+            const cur = groupSel.value;
+            groupSel.innerHTML = '<option value="">-- كل المجموعات --</option>';
+            groups.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g; opt.textContent = g;
+                if (g === cur) opt.selected = true;
+                groupSel.appendChild(opt);
+            });
+        }
+
+        // فرز: حسب اللجنة أولاً ثم المجموعة ثم الاسم
+        let filtered = [...data].sort((a, b) => {
+            const cA = parseInt(getStudentCommittee(a.code)) || 9999;
+            const cB = parseInt(getStudentCommittee(b.code)) || 9999;
+            if (cA !== cB) return cA - cB;
+            const gA = (a.group || '').localeCompare(b.group || '', 'ar');
+            if (gA !== 0) return gA;
+            return (a.name || '').localeCompare(b.name || '', 'ar');
+        });
+
+        if (search)  filtered = filtered.filter(s => s.name.toLowerCase().includes(search) || s.code.includes(search));
+        if (filterC) filtered = filtered.filter(s => String(getStudentCommittee(s.code)) === filterC);
+        if (filterG) filtered = filtered.filter(s => s.group === filterG);
+
+        const infoEl = document.getElementById('committees-results-info');
+        if (infoEl) infoEl.textContent = `إجمالي النتائج: ${filtered.length} من أصل ${data.length} طالب`;
+
+        const tbody = document.getElementById('committees-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:25px; color:#999; text-align:center;">لا توجد نتائج مطابقة</td></tr>';
+            return;
+        }
+
+        filtered.forEach((s, idx) => {
+            const cur = getStudentCommittee(s.code);
+            const tr = document.createElement('tr');
+            tr.dataset.code = s.code;
+            tr.innerHTML = `
+                <td>${idx + 1}</td>
+                <td><strong>${s.code}</strong></td>
+                <td>${s.name}</td>
+                <td>${s.group || '-'}</td>
+                <td>${s.subject || '-'}</td>
+                <td>
+                    <input type="number" class="committee-input" min="1" max="999"
+                        value="${cur}"
+                        placeholder="رقم اللجنة"
+                        style="width:90px; padding:5px 8px; border:2px solid #ddd; border-radius:6px; font-size:13px; text-align:center;"
+                        onchange="onCommitteeInputChange(this, '${s.code}')">
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function onCommitteeInputChange(input, code) {
+        setStudentCommittee(code, input.value.trim());
+        populateCommitteeFilterDropdown();
+        // update the badge in students tab table live
+        loadData();
+    }
+
+    async function loadCommitteesFromFile() {
+        try {
+            const resp = await fetch('committees.json');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data && data.committees) {
+                _committeesDB = data.committees;
+                if (data.autoApply !== undefined) {
+                    _autoApplyCommittees = !!data.autoApply;
+                }
+                console.log('✅ committees.json loaded, autoApply:', _autoApplyCommittees);
+            }
+        } catch(e) {
+            console.warn('⚠️ committees.json not found, starting fresh');
+        }
     }
 
     // ============================================
