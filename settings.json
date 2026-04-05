@@ -1,3 +1,87 @@
 {
-  "enc": "kRC88yKHgqog1NB6rsiczR97SXur5kPU+XpyiqQdZkxMxtdaBN8h7CVzfrW8LXc9X4JmFBBcr1LSjOleWAxDwEih15UMwGoheD6MtUQmvtUU0YxoAxONSPUI3lAlGXNmT6GOs7SXI0L2Y37U7PsfTHhr4MwGSEbbfWlE5yJ6pmlWFOIltZ9V59ATKToMb2lmXgI+m8T0uZ8Y3DRbHHBCEO0SD8fOUD70PIbl1t1WDYgMAuqh/WevG6H/NSc5WGhmVCHCDcxS52EiG1zEhQ7UU3oK/dxGpEPWFDS4w1s4g/0Cw+LTtx+v76NwuCzEOqM/0FLa60GZPJgvf4MDO2OsSO6R/rg624hHShLI7831RWngrcrQMrQnN8gTPw=="
+  "generalSettings": {},
+  "subjectSettings": {
+    "G11-BEH310-18-Chemistry-Ar -2-4-2026-V1": {
+      "enabled": false,
+      "showKeys": true,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-18-Chemistry-Ar -2-4-2026-V2": {
+      "enabled": false,
+      "showKeys": true,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-18-Chemistry-Ar -2-4-2026-V3": {
+      "enabled": false,
+      "showKeys": true,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-18-English-Ar -1-4-2026-V1": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-18-English-Ar -1-4-2026-V2": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-18-English-Ar -1-4-2026-V3": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": false,
+      "startDate": "",
+      "startTime": "",
+      "endDate": "",
+      "endTime": ""
+    },
+    "G11-BEH310-History -Ar -1-4-2026-v1": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": true,
+      "startDate": "2026-04-06",
+      "startTime": "10:30",
+      "endDate": "2026-04-06",
+      "endTime": "00:30"
+    },
+    "G11-BEH310-History -Ar-1-4-2026-V2": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": true,
+      "startDate": "2026-04-06",
+      "startTime": "10:30",
+      "endDate": "2026-04-06",
+      "endTime": "00:47"
+    },
+    "G11-BEH310-History -Ar-1-4-2026-V3": {
+      "enabled": true,
+      "showKeys": null,
+      "useTiming": true,
+      "startDate": "2026-04-06",
+      "startTime": "10:30",
+      "endDate": "2026-04-06",
+      "endTime": "00:48"
+    }
+  },
+  "adminCredentials": {}
 }
