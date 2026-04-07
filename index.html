@@ -1070,6 +1070,7 @@
                 <button class="tab-btn" onclick="openTab('students-tab', this)">👥 سجلات الطلاب</button>
                 <button class="tab-btn" onclick="openTab('committees-tab', this)">🏛️ إعداد اللجان</button>
                 <button class="tab-btn" onclick="openTab('settings-tab', this)">⚙️ الإعدادات</button>
+                <button class="tab-btn" onclick="openTab('query-logs-tab', this); renderQueryLogs();">📝 سجلات الاستعلام</button>
             </div>
         </div>
 
@@ -1091,6 +1092,10 @@
                 <div class="stat-card">
                     <div class="stat-number" id="total-files">0</div>
                     <div class="stat-label">الملفات المستوردة</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="dash-logs-count">0</div>
+                    <div class="stat-label">استعلامات الطلاب</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" id="last-update">-</div>
@@ -1440,6 +1445,66 @@
                 </div>
             </div>
         </div>
+
+        <!-- ===== تبويب سجلات الاستعلام ===== -->
+        <div id="query-logs-tab" class="tab-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+                <h3 style="color:var(--primary-color); margin:0;">&#x1F4DD; سجلات استعلام الطلاب</h3>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="exportQueryLogsJSON()">&#x2B07;&#xFE0F; تنزيل query_logs.json</button>
+                    <button class="btn btn-warning" onclick="importQueryLogsJSON()">&#x1F4C2; تحميل query_logs.json</button>
+                    <button class="btn btn-danger" onclick="clearAllQueryLogs()">&#x1F5D1;&#xFE0F; حذف الكل</button>
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-bottom:20px;">
+                <div class="stat-card">
+                    <div class="stat-number" id="logs-total-count">0</div>
+                    <div class="stat-label">إجمالي الاستعلامات</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="logs-today-count">0</div>
+                    <div class="stat-label">استعلامات اليوم</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="logs-unique-students">0</div>
+                    <div class="stat-label">طلاب مختلفون</div>
+                </div>
+            </div>
+            <div class="filter-bar" style="margin-bottom:15px;">
+                <div class="filter-group">
+                    <label>&#x1F50D; بحث بالاسم أو الكود</label>
+                    <input type="text" id="logs-search" placeholder="ابحث..." oninput="renderQueryLogs()">
+                </div>
+                <div class="filter-group">
+                    <label>&#x1F4C5; تاريخ الاستعلام</label>
+                    <input type="date" id="logs-date-filter" onchange="renderQueryLogs()">
+                </div>
+                <div class="filter-group" style="max-width:130px;">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="document.getElementById('logs-search').value='';document.getElementById('logs-date-filter').value='';renderQueryLogs();" style="padding:9px 14px;font-size:13px;">&#x21BA; إعادة ضبط</button>
+                </div>
+            </div>
+            <div class="filter-results-info" id="logs-results-info">لا توجد سجلات بعد</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الكود التعريفي</th>
+                            <th>اسم الطالب</th>
+                            <th>المادة</th>
+                            <th>تاريخ الاستعلام</th>
+                            <th>الوقت</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="query-logs-table-body">
+                        <tr><td colspan="7" style="padding:25px; color:#999;">لا توجد سجلات بعد</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -1732,6 +1797,7 @@
         await loadSettingsFromFile();   // تحميل الإعدادات من settings.json أولاً
         await initAdminCredentials();
         await loadCommitteesFromFile(); // تحميل توزيع اللجان
+        await loadQueryLogsFromFile();  // تحميل سجلات الاستعلام
         loadData();
         loadSettings();
         loadImportedFiles();
@@ -2000,6 +2066,10 @@
             console.log('✅ Student found:', allowedStudents[0].name, '| Records:', allowedStudents.length);
             errorMsg.style.display = 'none';
             resultCard.classList.add('active');
+
+            // تسجيل الاستعلام الناجح في سجلات الاستعلام
+            var subjectNames = allowedStudents.map(function(s){ return s.subject || '—'; });
+            logSuccessfulQuery(allowedStudents[0].code, allowedStudents[0].name, subjectNames);
 
             const firstStudent = allowedStudents[0];
             const committeeNum = getStudentCommittee(firstStudent.code);
@@ -3819,6 +3889,181 @@
             console.log('💾 students_data.json exported:', data.length, 'students');
         } catch (err) {
             console.error('Export students file error:', err);
+        }
+    }
+
+    // ============================================
+    // ===== نظام سجلات الاستعلام =====
+    // query_logs.json : { logs: [ {id, code, name, subject, date, time, timestamp} ] }
+    // ============================================
+
+    // مخزن السجلات في الذاكرة (يُحمَّل من query_logs.json أو يبدأ فارغاً)
+    var _queryLogs = [];
+
+    // تسجيل استعلام ناجح
+    function logSuccessfulQuery(code, name, subjects) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('ar-EG', { year:'numeric', month:'2-digit', day:'2-digit' });
+        const timeStr = now.toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const isoDate = now.toISOString().slice(0, 10);
+
+        // نسجّل سجلاً لكل مادة على حدة (أو سجلاً واحداً إذا لم تكن هناك مواد)
+        const subjectsList = (subjects && subjects.length > 0) ? subjects : ['—'];
+        subjectsList.forEach(function(subj) {
+            var entry = {
+                id: Date.now() + Math.random().toString(36).slice(2,7),
+                code: code,
+                name: name,
+                subject: subj,
+                date: isoDate,
+                dateDisplay: dateStr,
+                time: timeStr,
+                timestamp: now.getTime()
+            };
+            _queryLogs.unshift(entry); // أحدث أولاً
+        });
+
+        updateLogsStats();
+    }
+
+    // تحديث إحصائيات السجلات في التبويب
+    function updateLogsStats() {
+        var total = _queryLogs.length;
+        var todayStr = new Date().toISOString().slice(0, 10);
+        var todayCount = _queryLogs.filter(function(l){ return l.date === todayStr; }).length;
+        var unique = new Set(_queryLogs.map(function(l){ return l.code; })).size;
+
+        var elTotal  = document.getElementById('logs-total-count');
+        var elToday  = document.getElementById('logs-today-count');
+        var elUnique = document.getElementById('logs-unique-students');
+        if (elTotal)  elTotal.textContent  = total;
+        if (elToday)  elToday.textContent  = todayCount;
+        if (elUnique) elUnique.textContent = unique;
+
+        // تحديث بطاقة لوحة المعلومات أيضاً
+        var dashEl = document.getElementById('dash-logs-count');
+        if (dashEl) dashEl.textContent = total;
+    }
+
+    // عرض جدول السجلات
+    function renderQueryLogs() {
+        updateLogsStats();
+        var search    = (document.getElementById('logs-search')      || {value:''}).value.trim().toLowerCase();
+        var dateFilter= (document.getElementById('logs-date-filter') || {value:''}).value;
+
+        var filtered = _queryLogs.filter(function(l) {
+            var matchSearch = !search || l.code.toLowerCase().includes(search) || l.name.toLowerCase().includes(search);
+            var matchDate   = !dateFilter || l.date === dateFilter;
+            return matchSearch && matchDate;
+        });
+
+        var infoEl = document.getElementById('logs-results-info');
+        if (infoEl) {
+            infoEl.textContent = filtered.length > 0
+                ? 'إجمالي النتائج: ' + filtered.length + ' من أصل ' + _queryLogs.length + ' سجل'
+                : 'لا توجد سجلات مطابقة';
+        }
+
+        var tbody = document.getElementById('query-logs-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:25px; color:#999; text-align:center;">لا توجد سجلات مطابقة</td></tr>';
+            return;
+        }
+
+        filtered.forEach(function(log, idx) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + (idx + 1) + '</td>' +
+                '<td><strong>' + log.code + '</strong></td>' +
+                '<td>' + log.name + '</td>' +
+                '<td>' + (log.subject || '—') + '</td>' +
+                '<td>' + (log.dateDisplay || log.date) + '</td>' +
+                '<td>' + log.time + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-danger" style="padding:5px 12px;font-size:12px;" onclick="deleteQueryLog(\'' + log.id + '\')">🗑️ حذف</button>' +
+                '</td>';
+            tbody.appendChild(tr);
+        });
+    }
+
+    // حذف سجل واحد
+    function deleteQueryLog(id) {
+        _queryLogs = _queryLogs.filter(function(l){ return l.id !== id; });
+        renderQueryLogs();
+        showNotification('🗑️ تم حذف السجل');
+    }
+
+    // حذف كل السجلات
+    function clearAllQueryLogs() {
+        if (!confirm('هل أنت متأكد من حذف جميع سجلات الاستعلام؟')) return;
+        _queryLogs = [];
+        renderQueryLogs();
+        showNotification('🗑️ تم حذف جميع السجلات');
+    }
+
+    // تنزيل query_logs.json
+    function exportQueryLogsJSON() {
+        var data = {
+            exportDate: new Date().toISOString(),
+            school: 'محلة قيس الثانوية',
+            totalRecords: _queryLogs.length,
+            logs: _queryLogs
+        };
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8;' });
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href   = url;
+        a.download = 'query_logs.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification('✅ تم تنزيل query_logs.json (' + _queryLogs.length + ' سجل)');
+    }
+
+    // تحميل query_logs.json
+    function importQueryLogsJSON() {
+        var input = document.createElement('input');
+        input.type   = 'file';
+        input.accept = '.json';
+        input.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    var parsed = JSON.parse(ev.target.result);
+                    if (!parsed.logs || !Array.isArray(parsed.logs)) {
+                        throw new Error('الملف لا يحتوي على حقل logs صحيح');
+                    }
+                    // دمج بدون تكرار (بالـ id)
+                    var existingIds = new Set(_queryLogs.map(function(l){ return l.id; }));
+                    var newEntries  = parsed.logs.filter(function(l){ return !existingIds.has(l.id); });
+                    _queryLogs = _queryLogs.concat(newEntries).sort(function(a,b){ return b.timestamp - a.timestamp; });
+                    renderQueryLogs();
+                    showNotification('✅ تم تحميل ' + parsed.logs.length + ' سجل (جديد: ' + newEntries.length + ')');
+                } catch(err) {
+                    showNotification('❌ خطأ في قراءة الملف: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    // تحميل query_logs.json من الخادم عند البدء
+    async function loadQueryLogsFromFile() {
+        try {
+            var resp = await fetch('query_logs.json');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            if (data && Array.isArray(data.logs)) {
+                _queryLogs = data.logs;
+                console.log('✅ query_logs.json loaded:', _queryLogs.length, 'records');
+            }
+        } catch(e) {
+            console.warn('⚠️ query_logs.json not found, starting fresh');
         }
     }
 
