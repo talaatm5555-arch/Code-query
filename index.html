@@ -1600,7 +1600,7 @@
     async function loadSettingsFromFile() {
         console.log('⚙️ Loading settings from settings.json...');
         try {
-            const response = await fetch('settings.json');
+            const response = await fetch('settings.json?v=' + Date.now());
             if (!response.ok) throw new Error('settings.json not found');
             const raw = await response.json();
 
@@ -1812,7 +1812,7 @@
     async function loadData() {
         console.log('📊 Loading data from students_data.json...');
         try {
-            const response = await fetch('students_data.json');
+            const response = await fetch('students_data.json?v=' + Date.now());
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const raw = await response.json();
@@ -3826,7 +3826,7 @@
 
     async function loadCommitteesFromFile() {
         try {
-            const resp = await fetch('committees.json');
+            const resp = await fetch('committees.json?v=' + Date.now());
             if (!resp.ok) return;
             const data = await resp.json();
             if (data && data.committees) {
