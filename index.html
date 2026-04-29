@@ -1286,6 +1286,7 @@
                         <button class="btn btn-warning" onclick="clearAllCommittees()">🗑️ مسح التوزيع</button>
                         <button class="btn" onclick="saveCommittees()">💾 حفظ التوزيع</button>
                         <button class="btn btn-warning" onclick="importCommitteesFile()">📂 تحميل committees.json</button>
+                        <button class="btn" style="background:#0d6efd;" onclick="importCommitteesFromExcel()">📊 استيراد لجان من Excel</button>
                     </div>
                 </div>
 
@@ -1293,6 +1294,38 @@
                 <div id="committee-preview-box" style="background:#e8f4f8; border-radius:8px; padding:10px 15px; font-size:13px; color:#1a5f7a; margin-bottom:10px;">
                     💡 <strong>التوزيع التلقائي:</strong> يملأ اللجنة بالعدد المحدد بالتسلسل من المجموعة الأولى إلى الأخيرة.
                     يمكنك تعديل اللجنة لأي طالب يدوياً من الجدول أدناه.
+                </div>
+
+                <!-- بطاقة معلومات استيراد Excel -->
+                <div style="background:#e8f4f8; border:1px solid #bee5eb; border-radius:8px; padding:12px 16px; font-size:12px; color:#0c5460; margin-top:8px;">
+                    📊 <strong>استيراد لجان من Excel:</strong> يجب أن يحتوي الملف على عمودين على الأقل:
+                    <strong>كود الطالب</strong> (يُكتشف تلقائياً) و<strong>رقم اللجنة</strong>.
+                    بعد الاستيراد، سيُطبَّق التوزيع تلقائياً على الطلاب عند استيراد أي بيانات.
+                    &nbsp;<a href="#" onclick="downloadExcelTemplate(); return false;" style="color:#1a5f7a; font-weight:bold;">&#11015;&#65039; تحميل نموذج Excel</a>
+                </div>
+            </div>
+
+
+            <!-- مودال ربط أعمدة Excel -->
+            <div id="excel-mapping-modal" class="modal">
+                <div class="modal-content" style="max-width:520px; text-align:right;">
+                    <div class="modal-icon">📊</div>
+                    <h3 style="color:var(--primary-color); margin-bottom:8px;">ربط أعمدة ملف Excel</h3>
+                    <p style="font-size:13px; color:#666; margin-bottom:15px;">اختر العمود المقابل لكل حقل من الجدول المكتشف في الملف</p>
+                    <div id="excel-columns-found" style="font-size:12px; color:#555; background:var(--light-bg); padding:8px 12px; border-radius:6px; margin-bottom:12px;"></div>
+                    <div class="col-mapping-row">
+                        <label>كود الطالب:</label>
+                        <select id="excel-col-code"></select>
+                    </div>
+                    <div class="col-mapping-row">
+                        <label>رقم اللجنة:</label>
+                        <select id="excel-col-committee"></select>
+                    </div>
+                    <div id="excel-preview-rows" style="margin-top:10px; font-size:12px; color:#333; background:var(--light-bg); padding:8px 12px; border-radius:6px; max-height:120px; overflow-y:auto; display:none;"></div>
+                    <div class="modal-buttons">
+                        <button class="btn btn-success" onclick="confirmExcelImport()">✅ استيراد اللجان</button>
+                        <button class="btn btn-danger" onclick="cancelExcelImport()">❌ إلغاء</button>
+                    </div>
                 </div>
             </div>
 
@@ -4124,6 +4157,181 @@
         };
         input.click();
     }
+
+    // ============================================
+    // ===== استيراد اللجان من ملف Excel =====
+    // ============================================
+    var _excelRawData = [];     // بيانات الـ Excel الخام (مصفوفة من الصفوف)
+    var _excelHeaders = [];     // أسماء الأعمدة المكتشفة
+
+    // تحميل مكتبة SheetJS ديناميكياً إن لم تكن محملة
+    function loadSheetJS(callback) {
+        if (window.XLSX) { callback(); return; }
+        var s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload  = callback;
+        s.onerror = function() { showNotification('❌ تعذّر تحميل مكتبة Excel — تحقق من الاتصال بالإنترنت', 'error'); };
+        document.head.appendChild(s);
+    }
+
+    // فتح مربع اختيار ملف Excel
+    function importCommitteesFromExcel() {
+        loadSheetJS(function() {
+            var input = document.createElement('input');
+            input.type   = 'file';
+            input.accept = '.xlsx,.xls,.csv';
+            input.onchange = function(e) {
+                var file = e.target.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    try {
+                        var wb = XLSX.read(ev.target.result, { type: 'binary' });
+                        var ws = wb.Sheets[wb.SheetNames[0]];
+                        var json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                        if (!json || json.length < 2) {
+                            showNotification('❌ الملف فارغ أو لا يحتوي على بيانات كافية', 'error');
+                            return;
+                        }
+                        _excelHeaders  = json[0].map(function(h){ return String(h).trim(); });
+                        _excelRawData  = json.slice(1).filter(function(r){ return r.some(function(c){ return c !== ''; }); });
+                        openExcelMappingModal();
+                    } catch(err) {
+                        showNotification('❌ خطأ في قراءة ملف Excel: ' + err.message, 'error');
+                    }
+                };
+                reader.readAsBinaryString(file);
+            };
+            input.click();
+        });
+    }
+
+    // فتح مودال ربط الأعمدة
+    function openExcelMappingModal() {
+        var modal = document.getElementById('excel-mapping-modal');
+        if (!modal) return;
+
+        // عرض الأعمدة المكتشفة
+        var infoEl = document.getElementById('excel-columns-found');
+        if (infoEl) {
+            infoEl.innerHTML = '🔍 الأعمدة المكتشفة: <strong>' + _excelHeaders.join('، ') + '</strong> | إجمالي الصفوف: <strong>' + _excelRawData.length + '</strong>';
+        }
+
+        // بناء خيارات القوائم المنسدلة
+        var options = '<option value="">-- اختر --</option>' +
+            _excelHeaders.map(function(h, i){ return '<option value="' + i + '">' + h + '</option>'; }).join('');
+
+        var codeEl = document.getElementById('excel-col-code');
+        var commEl = document.getElementById('excel-col-committee');
+        if (codeEl) codeEl.innerHTML = options;
+        if (commEl) commEl.innerHTML = options;
+
+        // اكتشاف تلقائي للعمود المحتمل للكود واللجنة
+        var codeGuess = -1, commGuess = -1;
+        _excelHeaders.forEach(function(h, i) {
+            var hl = h.toLowerCase();
+            if (codeGuess === -1 && (hl.includes('كود') || hl.includes('code') || hl.includes('رقم الجلوس') || hl.includes('id'))) codeGuess = i;
+            if (commGuess === -1 && (hl.includes('لجنة') || hl.includes('commit') || hl.includes('committee') || hl.includes('قاعة') || hl.includes('room'))) commGuess = i;
+        });
+        // fallback: أول عمود للكود، ثاني للجنة
+        if (codeGuess === -1 && _excelHeaders.length >= 1) codeGuess = 0;
+        if (commGuess === -1 && _excelHeaders.length >= 2) commGuess = 1;
+
+        if (codeEl && codeGuess >= 0) codeEl.value = String(codeGuess);
+        if (commEl && commGuess >= 0) commEl.value = String(commGuess);
+
+        // معاينة أول 5 صفوف
+        updateExcelPreview();
+        if (codeEl) codeEl.onchange = updateExcelPreview;
+        if (commEl) commEl.onchange = updateExcelPreview;
+
+        modal.classList.add('active');
+    }
+
+    function updateExcelPreview() {
+        var previewEl = document.getElementById('excel-preview-rows');
+        if (!previewEl) return;
+        var codeIdx = parseInt((document.getElementById('excel-col-code') || {}).value);
+        var commIdx = parseInt((document.getElementById('excel-col-committee') || {}).value);
+        if (isNaN(codeIdx) || isNaN(commIdx)) { previewEl.style.display = 'none'; return; }
+        var rows = _excelRawData.slice(0, 5);
+        var html = '<strong>معاينة أول 5 صفوف:</strong><table style="width:100%; border-collapse:collapse; margin-top:5px;">' +
+            '<tr><th style="background:var(--primary-color);color:white;padding:4px 8px;">كود الطالب</th><th style="background:var(--primary-color);color:white;padding:4px 8px;">رقم اللجنة</th></tr>' +
+            rows.map(function(r) {
+                return '<tr><td style="padding:3px 8px; border-bottom:1px solid #eee;">' + (r[codeIdx] || '—') + '</td><td style="padding:3px 8px; border-bottom:1px solid #eee;">' + (r[commIdx] || '—') + '</td></tr>';
+            }).join('') + '</table>';
+        previewEl.innerHTML = html;
+        previewEl.style.display = 'block';
+    }
+
+    // تأكيد الاستيراد
+    function confirmExcelImport() {
+        var codeIdx = parseInt((document.getElementById('excel-col-code') || {}).value);
+        var commIdx = parseInt((document.getElementById('excel-col-committee') || {}).value);
+
+        if (isNaN(codeIdx) || isNaN(commIdx)) {
+            showNotification('⚠️ الرجاء تحديد عمود الكود وعمود اللجنة', 'warning');
+            return;
+        }
+        if (codeIdx === commIdx) {
+            showNotification('⚠️ يجب أن يكون عمود الكود وعمود اللجنة مختلفين', 'warning');
+            return;
+        }
+
+        var imported = 0, skipped = 0;
+        _excelRawData.forEach(function(row) {
+            var code  = String(row[codeIdx] || '').trim();
+            var comm  = String(row[commIdx] || '').trim();
+            if (!code || !comm) { skipped++; return; }
+            var commNum = parseInt(comm);
+            if (isNaN(commNum)) { skipped++; return; }
+            _committeesDB[code] = commNum;
+            imported++;
+        });
+
+        // تفعيل التطبيق التلقائي تلقائياً بعد استيراد اللجان
+        _autoApplyCommittees = true;
+        var cb = document.getElementById('auto-apply-committees');
+        if (cb) cb.checked = true;
+        updateAutoApplyUI();
+
+        // حفظ وتحديث العرض
+        populateCommitteeFilterDropdown();
+        renderCommitteesTable();
+        updateApplyAllSummary();
+        loadData();
+
+        document.getElementById('excel-mapping-modal').classList.remove('active');
+        showNotification('✅ تم استيراد ' + imported + ' لجنة من Excel' + (skipped > 0 ? ' (تم تجاهل ' + skipped + ' صف فارغ)' : '') + ' — التطبيق التلقائي مُفعَّل');
+    }
+
+    function cancelExcelImport() {
+        var modal = document.getElementById('excel-mapping-modal');
+        if (modal) modal.classList.remove('active');
+        _excelRawData = [];
+        _excelHeaders = [];
+    }
+
+    // تحميل نموذج Excel فارغ
+    function downloadExcelTemplate() {
+        loadSheetJS(function() {
+            var wb = XLSX.utils.book_new();
+            var wsData = [
+                ['كود الطالب', 'رقم اللجنة'],
+                ['123456', '1'],
+                ['123457', '1'],
+                ['123458', '2'],
+                ['123459', '2'],
+            ];
+            var ws = XLSX.utils.aoa_to_sheet(wsData);
+            // ضبط عرض الأعمدة
+            ws['!cols'] = [{wch: 20}, {wch: 15}];
+            XLSX.utils.book_append_sheet(wb, ws, 'اللجان');
+            XLSX.writeFile(wb, 'نموذج_اللجان.xlsx');
+            showNotification('✅ تم تحميل نموذج Excel');
+        });
+    }
+
 </script>
 
 </body>
